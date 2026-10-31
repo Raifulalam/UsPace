@@ -6,6 +6,7 @@ Monorepo layout (only `apps/api` exists so far):
 apps/api         Express + Mongoose + Socket.IO        <- Phase 1 + 2a (E2EE server side)
 packages/crypto  libsodium E2EE primitives (client)    <- Phase 2a
 packages/canvas-core  pure canvas logic + validation   <- Phase 3 (tested without a browser)
+apps/android     Kotlin live wallpaper                 <- see apps/android/README.md
 apps/web         Next.js + Tailwind                    <- Phase 2b (key storage, UI)
 apps/mobile      Expo (only if native features are needed)
 ```
@@ -36,6 +37,7 @@ cd ../web && cp .env.example .env.local && npm run dev   # http://localhost:3000
 | E2EE client crypto (`packages/crypto`): wrap/unwrap, AEAD with bound AAD, padding, safety number, recovery key | Implemented, tests written, **not yet executed** |
 | Web app (`apps/web`): auth, couple onboarding, device approval, recovery key, safety number, encrypted real-time chat with hearts | Implemented (Phase 2b), **never built or run**; typecheck blocked on missing dependencies |
 | Live Love Canvas (Phase 3): encrypted ops, server-ordered seq, live previews, undo/redo, clear, text, stickers, backgrounds, PNG download, favorites, reconnect replay | Implemented. `canvas-core` tests **pass (11/11, run)**. API canvas tests + crypto test + the UI are **not yet run** |
+| Android live wallpaper (`apps/android`): partner's canvas live on the phone, encrypted on-device, hidden on lock screen by default | Written, **not compiled or run** (no Android SDK here). Shared drawing-rule cases pass in JS (41/41); the Kotlin port runs the same cases via `./gradlew test` |
 | Password reset, device/session list, account deletion/export, MFA | Phase 1b |
 | Chat, canvas, memories, media, calls, admin, subscriptions, web UI | Not started |
 

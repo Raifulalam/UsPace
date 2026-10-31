@@ -166,6 +166,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
     s.on('connect_error', async (e: Error) => { setConn('offline'); if (e.message === 'unauthorized') await tryRefresh(); });
     s.on('canvas:op', (m: { canvasId: string; op: WireOp }) => { if (m.canvasId === activeRef.current) ingest(m.canvasId, [m.op]); });
     s.on('canvas:archived', (m: { canvasId: string }) => removeCanvas(m.canvasId));
+    s.on('canvas:created', () => { api<{ canvases: CanvasMeta[] }>('/canvases').then((r) => setCanvases(r.canvases)).catch(() => {}); });
     s.on('keys:updated', () => onKeysRef.current());
     s.on('canvas:live', (m: { canvasId: string; senderId: string; keyVersion: number; nonce: string; ciphertext: string }) => {
       if (m.canvasId !== activeRef.current || m.senderId === user.id) return;

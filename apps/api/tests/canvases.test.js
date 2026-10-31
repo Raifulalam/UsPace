@@ -106,6 +106,21 @@ describe('canvases (realtime)', () => {
   });
   const join = async (c, canvasId) => { await emit(c, 'couple:join'); return emit(c, 'canvas:join', { canvasId }); };
 
+  test('a new canvas is announced to the partner (and not to other couples)', async () => {
+    const { a, b, A } = await setup();
+    const stranger = await setup();
+    const cb = await open(b.token);
+    const cs = await open(stranger.a.token);
+    await emit(cb, 'couple:join');
+    await emit(cs, 'couple:join');
+    const gotB = waitFor(cb, 'canvas:created');
+    const gotS = waitFor(cs, 'canvas:created');
+    const created = (await A.post('/api/v1/canvases')).body.data.canvas;
+    expect((await gotB).canvasId).toBe(created.id);
+    expect(await gotS).toBeNull();
+    expect(a.user.id).toBeTruthy();
+  });
+
   test('ops and live previews reach the partner only; other couples cannot join or inject', async () => {
     const { a, b, da, canvas } = await setup();
     const stranger = await setup();

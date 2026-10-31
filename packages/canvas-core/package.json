@@ -3,5 +3,5 @@
   "version": "0.1.0",
   "private": true,
   "main": "src/index.js",
-  "scripts": { "test": "node --test tests/core.test.js" }
+  "scripts": { "test": "node --test tests/core.test.js tests/fixtures.test.js" }
 }

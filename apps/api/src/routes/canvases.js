@@ -6,12 +6,16 @@ const asyncHandler = require('../utils/asyncHandler');
 const { zObjectId } = require('../utils/b64');
 const { restOpSchema, listOpsSchema, favoriteSchema } = require('../schemas/canvas');
 const svc = require('../services/canvasService');
-const { emitToCanvas } = require('../services/realtime');
+const { emitToCanvas, emitToCouple } = require('../services/realtime');
 
 const idParam = z.object({ id: zObjectId }).strict();
 router.use(authenticate);
 
-router.post('/', asyncHandler(async (req, res) => res.status(201).json({ data: { canvas: await svc.createCanvas(req.user) } })));
+router.post('/', asyncHandler(async (req, res) => {
+  const canvas = await svc.createCanvas(req.user);
+  emitToCouple(String(req.user.coupleId), 'canvas:created', { canvasId: canvas.id }); // lets partners (and the wallpaper) follow the newest canvas
+  res.status(201).json({ data: { canvas } });
+}));
 router.get('/', asyncHandler(async (req, res) => res.json({ data: { canvases: await svc.listCanvases(req.user) } })));
 router.get('/:id/ops', validate(idParam, 'params'), validate(listOpsSchema, 'query'), asyncHandler(async (req, res) => {
   res.json({ data: await svc.listOps(req.user, req.params.id, req.query) });

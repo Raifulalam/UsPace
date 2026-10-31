@@ -145,9 +145,7 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
             <h2 className="text-lg font-semibold">This device needs approval</h2>
             <p className="text-sm text-muted">{waitingHint}</p>
             <p className="rounded-2xl bg-bg/70 p-3 font-mono text-lg tracking-wider">{x.deviceCode}</p>
-           <p className="text-xs text-muted">
-  Device ID: {x.device.id.slice(0, 12)}
-</p>
+            <p className="text-xs text-muted">{x.device.label}</p>
           </section>
           <section className="card grid gap-2">
             <h3 className="font-medium">No other device? Use your recovery key</h3>
