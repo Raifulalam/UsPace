@@ -1,0 +1,5 @@
+{
+  "name": "couples-app",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"]
+}

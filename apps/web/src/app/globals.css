@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light: lavender paper. Dark: deep navy. Pink + violet accents in both. */
+:root {
+  --bg: 248 244 255; --surface: 255 255 255; --ink: 27 27 58; --muted: 104 104 146;
+  --accent: 219 39 119; --accent2: 124 58 237; --line: 226 220 247;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: 10 14 44; --surface: 20 28 72; --ink: 241 238 255; --muted: 160 162 208;
+    --accent: 244 114 182; --accent2: 167 139 250; --line: 45 55 108;
+  }
+}
+body {
+  @apply bg-bg text-ink antialiased;
+  background-image: radial-gradient(ellipse at 15% -10%, rgb(var(--accent2) / 0.22), transparent 55%),
+                    radial-gradient(ellipse at 100% 0%, rgb(var(--accent) / 0.16), transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+:focus-visible { outline: 2px solid rgb(var(--accent2)); outline-offset: 2px; }
+
+@layer components {
+  .card { @apply rounded-3xl border border-line bg-surface/80 p-5 shadow-soft backdrop-blur; }
+  .input { @apply w-full rounded-2xl border border-line bg-bg/60 px-4 py-3 text-ink placeholder:text-muted/70 focus:border-accent2 focus:outline-none; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-gradient-to-r from-accent to-accent2 text-white hover:brightness-110; }
+  .btn-ghost { @apply btn border border-line text-ink hover:bg-line/40; }
+  .label { @apply mb-1 block text-sm text-muted; }
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-260px) scale(1.4); opacity: 0; }
+}
+.heart-float { animation: floatUp 2.2s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .heart-float { animation-duration: 0.01s; } }
