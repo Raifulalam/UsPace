@@ -20,12 +20,11 @@ function ageOn(birth, now = new Date()) {
   return age;
 }
 
-async function issueSession(user, ctx, familyId = crypto.randomUUID(), parentFamilyId = undefined) {
+async function issueSession(user, ctx, familyId = crypto.randomUUID()) {
   const refreshToken = randomToken(48);
   await RefreshToken.create({
     userId: user._id,
     familyId,
-    parentFamilyId,
     tokenHash: sha256(refreshToken),
     expiresAt: new Date(Date.now() + config.REFRESH_TOKEN_TTL_DAYS * 86400000),
     userAgent: ctx.userAgent,
@@ -85,13 +84,6 @@ async function login({ identifier, password }, ctx) {
   return { user, session: await issueSession(user, ctx) };
 }
 
-// Revoking a web session also revokes any native-app session that was handed off from it.
-const revokeFamily = (familyId) =>
-  RefreshToken.updateMany(
-    { $or: [{ familyId }, { parentFamilyId: familyId }], revokedAt: null },
-    { $set: { revokedAt: new Date() } }
-  );
-
 // Rotating refresh tokens with reuse detection: a token can be redeemed once. Replaying an
 // already-used token means it was probably stolen, so the whole device family is revoked.
 async function refresh(rawToken, ctx) {
@@ -103,32 +95,18 @@ async function refresh(rawToken, ctx) {
   );
   if (!rec) {
     const old = await RefreshToken.findOne({ tokenHash });
-    if (old) await revokeFamily(old.familyId);
+    if (old) await RefreshToken.updateMany({ familyId: old.familyId, revokedAt: null }, { $set: { revokedAt: new Date() } });
     throw new AppError(401, 'INVALID_REFRESH', 'Session expired, please log in again');
   }
   const user = await User.findById(rec.userId);
   if (!user || user.status !== 'active') throw new AppError(401, 'INVALID_REFRESH', 'Session expired, please log in again');
-  return { user, session: await issueSession(user, ctx, rec.familyId, rec.parentFamilyId) }; // keep the link when a native session rotates
+  return { user, session: await issueSession(user, ctx, rec.familyId) };
 }
 
 async function logout(rawToken) {
   if (!rawToken) return;
   const rec = await RefreshToken.findOne({ tokenHash: sha256(rawToken) });
-  if (rec) await revokeFamily(rec.familyId);
-}
-
-// Handoff for the Android app: the app reads the website's httpOnly refresh cookie from its own WebView cookie store and sends it
-// here once. This does NOT redeem/rotate the web token (the web session keeps working). It issues the app its own session (new family,
-// linked to the web session) so the two never rotate each other's tokens. One native session per web session; web logout revokes it.
-async function nativeSession(rawWebToken, ctx) {
-  const bad = () => new AppError(401, 'INVALID_REFRESH', 'Session expired, please log in again');
-  const rec = await RefreshToken.findOne({ tokenHash: sha256(rawWebToken), revokedAt: null, expiresAt: { $gt: new Date() } });
-  if (!rec || rec.parentFamilyId) throw bad(); // unknown/expired/revoked, or a native session trying to mint another
-  const user = await User.findById(rec.userId);
-  if (!user || user.status !== 'active') throw bad();
-  await RefreshToken.updateMany({ parentFamilyId: rec.familyId, revokedAt: null }, { $set: { revokedAt: new Date() } });
-  const nativeCtx = { ...ctx, userAgent: `native-app ${ctx.userAgent || ''}`.slice(0, 200) };
-  return { user, session: await issueSession(user, nativeCtx, crypto.randomUUID(), rec.familyId) };
+  if (rec) await RefreshToken.updateMany({ familyId: rec.familyId, revokedAt: null }, { $set: { revokedAt: new Date() } });
 }
 
 async function verifyEmail(token) {
@@ -141,4 +119,4 @@ async function verifyEmail(token) {
   return u;
 }
 
-module.exports = { register, login, refresh, logout, nativeSession, verifyEmail, ageOn };
+module.exports = { register, login, refresh, logout, verifyEmail, ageOn };

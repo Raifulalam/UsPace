@@ -1,4 +1,5 @@
 import * as cc from '@couples/crypto';
+import { validateDescriptor, type Descriptor, type MemoryType } from '@couples/media-core';
 import { api, ApiError } from './api';
 import { loadDevice, saveDevice, loadRoomKeys, saveRoomKeys, type LocalDevice } from './keystore';
 import type { ChatMessage, Device, Kind, SyncState, WireMessage } from './types';
@@ -171,6 +172,48 @@ export class E2EE {
     return { clientMsgId, deviceId: this.device.id, keyVersion, kind, nonce: enc.nonce, ciphertext: enc.ciphertext };
   }
 
+  // ---------- memories & albums ----------
+  private memoryAad(createdBy: string, clientMemoryId: string, keyVersion: number, type: string) {
+    return `couples-memory-v1|${this.coupleId}|${createdBy}|${clientMemoryId}|${keyVersion}|${type}`;
+  }
+  private albumAad(createdBy: string, clientAlbumId: string, keyVersion: number) {
+    return `couples-album-v1|${this.coupleId}|${createdBy}|${clientAlbumId}|${keyVersion}`;
+  }
+  buildMemory(createdBy: string, type: MemoryType, keyVersion: number, payload: unknown, clientMemoryId: string = crypto.randomUUID()) {
+    const key = this.keys.get(keyVersion);
+    if (!key) throw new Error('NO_KEY');
+    const enc = cc.encryptRaw(key, payload, this.memoryAad(createdBy, clientMemoryId, keyVersion, type));
+    return { clientMemoryId, type, keyVersion, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+  decryptMemory(m: { createdBy: string; clientMemoryId: string; type: string; keyVersion: number; nonce: string; ciphertext: string }):
+    { state: 'ok'; payload: unknown } | { state: 'locked' } | { state: 'tampered' } {
+    const key = this.keys.get(m.keyVersion);
+    if (!key) return { state: 'locked' };
+    try { return { state: 'ok', payload: cc.decryptRaw(key, m, this.memoryAad(m.createdBy, m.clientMemoryId, m.keyVersion, m.type)) }; }
+    catch { return { state: 'tampered' }; }
+  }
+  buildAlbum(createdBy: string, keyVersion: number, name: string, clientAlbumId: string = crypto.randomUUID()) {
+    const key = this.keys.get(keyVersion);
+    if (!key) throw new Error('NO_KEY');
+    const enc = cc.encryptRaw(key, { name: name.slice(0, 60) }, this.albumAad(createdBy, clientAlbumId, keyVersion));
+    return { clientAlbumId, keyVersion, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+  buildAlbumRename(createdBy: string, clientAlbumId: string, keyVersion: number, name: string) {
+    const key = this.keys.get(keyVersion);
+    if (!key) throw new Error('NO_KEY');
+    const enc = cc.encryptRaw(key, { name: name.slice(0, 60) }, this.albumAad(createdBy, clientAlbumId, keyVersion));
+    return { keyVersion, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+  /** Returns the album name, or null if it cannot be opened (no key yet, or tampered). */
+  decryptAlbumName(a: { createdBy: string; clientAlbumId: string; keyVersion: number; nonce: string; ciphertext: string }): string | null {
+    const key = this.keys.get(a.keyVersion);
+    if (!key) return null;
+    try {
+      const p = cc.decryptRaw(key, a, this.albumAad(a.createdBy, a.clientAlbumId, a.keyVersion));
+      return typeof p?.name === 'string' ? p.name.slice(0, 60) : null;
+    } catch { return null; }
+  }
+
   // ---------- canvas ----------
   private canvasOpAad(canvasId: string, senderId: string, clientOpId: string, keyVersion: number) {
     return `couples-canvas-op-v1|${this.coupleId}|${canvasId}|${senderId}|${clientOpId}|${keyVersion}`;
@@ -212,7 +255,8 @@ export class E2EE {
       const p = cc.decryptPayload(key, { nonce: m.nonce, ciphertext: m.ciphertext }, {
         coupleId: this.coupleId, senderId: m.senderId, clientMsgId: m.clientMsgId, keyVersion: m.keyVersion, kind: m.kind,
       });
-      return { ...base, text: typeof p?.text === 'string' ? p.text : null, state: 'ok' };
+      const media = Array.isArray(p?.media) ? (p.media as unknown[]).map(validateDescriptor).filter((d): d is Descriptor => d !== null) : [];
+      return { ...base, text: typeof p?.text === 'string' ? p.text : null, state: 'ok', ...(media.length ? { media } : {}) };
     } catch {
       return { ...base, text: null, state: 'tampered' };
     }

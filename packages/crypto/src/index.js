@@ -82,6 +82,49 @@ function decryptRaw(roomKey, { nonce, ciphertext }, aadString) {
   return JSON.parse(sodium.to_string(unpad(plain)));
 }
 
+// ---------- file encryption (photos, videos, voice notes) ----------
+// Format: secretstream header (24 bytes) + chunks of (FILE_CHUNK plaintext + 17 bytes authentication); the last chunk
+// carries TAG_FINAL, so truncation, reordering, insertion and bit-flips are all detected. Each file has its OWN random key
+// (the file key travels only inside an encrypted message/memory). Size = 24 + len + 17 * max(1, ceil(len / chunk)).
+const FILE_CHUNK = 1 << 20;
+const generateFileKey = () => sodium.crypto_secretstream_xchacha20poly1305_keygen();
+
+/** Returns the encrypted file as an array of parts (cheap to wrap in a Blob). */
+function encryptFile(fileKey, bytes, chunk = FILE_CHUNK) {
+  const { state, header } = sodium.crypto_secretstream_xchacha20poly1305_init_push(fileKey);
+  const parts = [header];
+  const n = Math.max(1, Math.ceil(bytes.length / chunk));
+  for (let i = 0; i < n; i++) {
+    const tag = i === n - 1 ? sodium.crypto_secretstream_xchacha20poly1305_TAG_FINAL : sodium.crypto_secretstream_xchacha20poly1305_TAG_MESSAGE;
+    parts.push(sodium.crypto_secretstream_xchacha20poly1305_push(state, bytes.subarray(i * chunk, (i + 1) * chunk), null, tag));
+  }
+  return parts;
+}
+
+/** Throws unless the WHOLE file authenticates, is complete and in order. Returns plaintext parts. */
+function decryptFile(fileKey, data, chunk = FILE_CHUNK) {
+  const HEAD = sodium.crypto_secretstream_xchacha20poly1305_HEADERBYTES;
+  const ABYTES = sodium.crypto_secretstream_xchacha20poly1305_ABYTES;
+  if (data.length < HEAD + ABYTES) throw new Error('file too short');
+  const state = sodium.crypto_secretstream_xchacha20poly1305_init_pull(data.subarray(0, HEAD), fileKey);
+  const out = [];
+  const step = chunk + ABYTES;
+  let off = HEAD;
+  let sawFinal = false;
+  while (off < data.length) {
+    if (sawFinal) throw new Error('unexpected data after the final chunk');
+    const end = Math.min(off + step, data.length);
+    let r;
+    try { r = sodium.crypto_secretstream_xchacha20poly1305_pull(state, data.subarray(off, end), null); } catch { r = false; }
+    if (!r) throw new Error('chunk failed authentication');
+    out.push(r.message);
+    if (r.tag === sodium.crypto_secretstream_xchacha20poly1305_TAG_FINAL) sawFinal = true;
+    off = end;
+  }
+  if (!sawFinal) throw new Error('file is truncated');
+  return out;
+}
+
 // ---------- safety number (compare out of band to detect a swapped key) ----------
 function safetyNumber(publicKeysB64) {
   const material = `couples-safety-v1|${[...publicKeysB64].sort().join('|')}`;
@@ -147,6 +190,7 @@ module.exports = {
   toBase64: b64, fromBase64: unb64,
   ready, generateDeviceKeyPair, generateRoomKey, wrapRoomKey, unwrapRoomKey,
   buildAad, encryptPayload, decryptPayload, encryptRaw, decryptRaw, safetyNumber,
+  FILE_CHUNK, generateFileKey, encryptFile, decryptFile,
   generateRecoveryKey, formatRecoveryKey, parseRecoveryKey, createRecoveryBlob, openRecoveryBlob,
   _internal: { pad, unpad, base32Encode, base32Decode },
 };

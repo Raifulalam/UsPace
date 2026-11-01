@@ -15,6 +15,11 @@ const userSchema = new mongoose.Schema(
     // Not unique: both partners share the same coupleId. "One couple per user" is enforced
     // by conditional atomic updates ({coupleId: null}) in coupleService.
     coupleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Couple', index: true },
+    resetTokenHash: { type: String, select: false },
+    resetExpiresAt: { type: Date, select: false },
+    resetRequestedAt: { type: Date, select: false },
+    deletionRequestedAt: Date,
+    deletionScheduledAt: Date,
     tokenVersion: { type: Number, default: 0 }, // bump to invalidate all access tokens
     failedLoginCount: { type: Number, default: 0 },
     lockUntil: Date,

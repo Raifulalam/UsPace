@@ -1,14 +1,16 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Brush, Heart, KeyRound, LogOut, MessageCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Brush, Heart, Images, KeyRound, LogOut, MessageCircle, Settings as SettingsIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/session';
 import { E2EE } from '@/lib/e2ee';
 import type { Couple, Device, SyncState, User } from '@/lib/types';
 import Onboarding from './Onboarding';
+import Settings from './Settings';
 import Chat from './Chat';
 import LoveCanvas from './LoveCanvas';
+import Memories from './Memories';
 import SecurityPanel from './SecurityPanel';
 import RecoveryKeyDialog from './RecoveryKeyDialog';
 
@@ -16,6 +18,7 @@ export default function Space() {
   const { user, status, logout } = useAuth();
   const router = useRouter();
   const [couple, setCouple] = useState<Couple | null | undefined>(undefined);
+  const [showSettings, setShowSettings] = useState(false);
 
   const loadCouple = useCallback(async () => {
     try { setCouple((await api<{ couple: Couple }>('/couples/me')).couple); }
@@ -40,12 +43,13 @@ export default function Space() {
   const header = (title: string, extra?: ReactNode) => (
     <header className="mx-auto flex h-[4.5rem] max-w-2xl items-center justify-between px-4">
       <h1 className="flex items-center gap-2 text-lg font-semibold"><Heart className="h-5 w-5 fill-accent text-accent" aria-hidden />{title}</h1>
-      <div className="flex items-center gap-2">{extra}<button className="btn-ghost" aria-label="Log out" onClick={logout}><LogOut className="h-4 w-4" /></button></div>
+      <div className="flex items-center gap-2">{extra}<button className="btn-ghost" aria-label="Settings" onClick={() => setShowSettings(true)}><SettingsIcon className="h-4 w-4" /></button><button className="btn-ghost" aria-label="Log out" onClick={logout}><LogOut className="h-4 w-4" /></button></div>
     </header>
   );
 
-  if (!couple || couple.status !== 'active') return <>{header(couple?.name ?? 'Our Space')}<Onboarding couple={couple} onChange={loadCouple} /></>;
-  return <ActiveSpace key={couple.id} user={user} couple={couple} header={header} />;
+  const settings = showSettings ? <Settings hasPartner={couple?.status === 'active'} onClose={() => setShowSettings(false)} /> : null;
+  if (!couple || couple.status !== 'active') return <>{header(couple?.name ?? 'Our Space')}<Onboarding couple={couple} onChange={loadCouple} />{settings}</>;
+  return <><ActiveSpace key={couple.id} user={user} couple={couple} header={header} />{settings}</>;
 }
 
 type ActiveProps = { user: User; couple: Couple; header: (title: string, extra?: ReactNode) => ReactNode };
@@ -61,7 +65,8 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
   const [rk, setRk] = useState<string | null>(null);
   const [hasBackup, setHasBackup] = useState<boolean | null>(null);
   const [showSec, setShowSec] = useState(false);
-  const [view, setView] = useState<'chat' | 'canvas'>('chat');
+  const [view, setView] = useState<'chat' | 'canvas' | 'memories'>('chat');
+  const [memoriesOpened, setMemoriesOpened] = useState(false);
   const [canvasOpened, setCanvasOpened] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [restoreText, setRestoreText] = useState('');
@@ -145,9 +150,7 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
             <h2 className="text-lg font-semibold">This device needs approval</h2>
             <p className="text-sm text-muted">{waitingHint}</p>
             <p className="rounded-2xl bg-bg/70 p-3 font-mono text-lg tracking-wider">{x.deviceCode}</p>
-            <p className="text-xs text-muted">
-  Device ID: {x.device.id.slice(0, 12)}
-</p>
+            <p className="text-xs text-muted">{x.device.label}</p>
           </section>
           <section className="card grid gap-2">
             <h3 className="font-medium">No other device? Use your recovery key</h3>
@@ -176,10 +179,16 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
           <nav className="mx-auto mb-2 flex max-w-2xl gap-2 px-3" aria-label="Sections">
             <button className={`btn-ghost flex-1 ${view === 'chat' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'chat' ? 'page' : undefined} onClick={() => setView('chat')}><MessageCircle className="h-4 w-4" />Chat</button>
             <button className={`btn-ghost flex-1 ${view === 'canvas' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'canvas' ? 'page' : undefined} onClick={() => { setView('canvas'); setCanvasOpened(true); }}><Brush className="h-4 w-4" />Live Canvas</button>
+            <button className={`btn-ghost flex-1 ${view === 'memories' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'memories' ? 'page' : undefined} onClick={() => { setView('memories'); setMemoriesOpened(true); }}><Images className="h-4 w-4" />Memories</button>
           </nav>
           <div className={view === 'chat' ? '' : 'hidden'}>
             <Chat user={user} couple={couple} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} onKeysUpdated={refresh} />
           </div>
+          {memoriesOpened && (
+            <div className={view === 'memories' ? '' : 'hidden'}>
+              <Memories user={user} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} visible={view === 'memories'} />
+            </div>
+          )}
           {canvasOpened && (
             <div className={view === 'canvas' ? '' : 'hidden'}>
               <LoveCanvas user={user} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} partnerName={couple.members.find((m) => m.id !== user.id)?.displayName ?? 'your partner'} onKeysUpdated={refresh} />

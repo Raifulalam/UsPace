@@ -13,6 +13,8 @@ const coupleSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     status: { type: String, enum: ['pending', 'active', 'closed'], default: 'pending', index: true },
     activatedAt: Date,
+    storageUsed: { type: Number, default: 0 }, // bytes of encrypted media reserved or stored
+    storageQuotaBytes: Number, // optional per-couple override (premium plans); default comes from config
     closedAt: Date,
     closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },

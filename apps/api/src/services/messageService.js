@@ -2,10 +2,11 @@ const Message = require('../models/Message');
 const Device = require('../models/Device');
 const AppError = require('../utils/AppError');
 const { requireActiveCouple } = require('./access');
+const media = require('./mediaService');
 
 const view = (m) => ({
   id: m.id, senderId: String(m.senderId), senderDeviceId: String(m.senderDeviceId), clientMsgId: m.clientMsgId,
-  keyVersion: m.keyVersion, kind: m.kind, deleted: Boolean(m.deletedAt),
+  keyVersion: m.keyVersion, kind: m.kind, deleted: Boolean(m.deletedAt), mediaIds: (m.mediaIds || []).map(String),
   nonce: m.deletedAt ? null : m.nonce, ciphertext: m.deletedAt ? null : m.ciphertext,
   expiresAt: m.expiresAt || null, createdAt: m.createdAt,
 });
@@ -17,10 +18,11 @@ async function sendMessage(user, input) {
   if (input.keyVersion !== couple.keyVersion) {
     throw new AppError(409, 'KEY_VERSION_STALE', 'The room key changed; fetch the new key and retry', { currentKeyVersion: couple.keyVersion });
   }
+  if (input.mediaIds && input.mediaIds.length) await media.assertAttachable(couple._id, input.mediaIds);
   try {
     const doc = await Message.create({
       coupleId: couple._id, senderId: user._id, senderDeviceId: device._id, clientMsgId: input.clientMsgId,
-      keyVersion: input.keyVersion, kind: input.kind, nonce: input.nonce, ciphertext: input.ciphertext,
+      keyVersion: input.keyVersion, kind: input.kind, nonce: input.nonce, ciphertext: input.ciphertext, mediaIds: input.mediaIds || [],
       expiresAt: input.expiresInSec ? new Date(Date.now() + input.expiresInSec * 1000) : undefined,
     });
     return { message: view(doc), created: true, coupleId: String(couple._id) };
@@ -51,6 +53,7 @@ async function deleteMessage(user, id) {
     { new: true }
   );
   if (!m) throw new AppError(404, 'MESSAGE_NOT_FOUND', 'No such message');
+  await media.releaseIfUnreferenced(couple._id, m.mediaIds); // files only this message used are deleted and the quota refunded
   return { message: view(m), coupleId: String(couple._id) };
 }
 

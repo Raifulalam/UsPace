@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "node --watch --env-file=.env src/server.js",
     "start": "node src/server.js",
-    "test": "jest --runInBand --forceExit"
+    "test": "jest --runInBand --forceExit",
+    "test:unit": "node --test node-tests/storage.test.js node-tests/privacy.test.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "@couples/media-core": "*",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -27,5 +31,15 @@
     "socket.io-client": "^4.7.5",
     "supertest": "^7.0.0"
   },
-  "jest": { "testEnvironment": "node", "setupFiles": ["<rootDir>/tests/setupEnv.js"], "testTimeout": 60000 }
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/tests/setupEnv.js"
+    ],
+    "testTimeout": 60000,
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/node-tests/"
+    ]
+  }
 }

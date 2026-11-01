@@ -1,10 +1,13 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Heart, Lock, Send, Trash2, TriangleAlert } from 'lucide-react';
+import { Bookmark, Heart, Lock, Mic, Paperclip, Send, Square, Trash2, TriangleAlert, X } from 'lucide-react';
+import { mediaIdsOf, memoryTypeFor, validateMemoryPayload, type Descriptor } from '@couples/media-core';
 import { api, ApiError, tryRefresh } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import type { E2EE } from '@/lib/e2ee';
 import type { ChatMessage, Couple, User, WireMessage } from '@/lib/types';
+import { MediaError, friendly, prepareFile, startRecording, type Recording } from '@/lib/mediaClient';
+import MediaView from './MediaView';
 
 type Pending = { clientMsgId: string; kind: 'text' | 'heart'; text: string | null; createdAt: string; failed: boolean };
 type Props = { user: User; couple: Couple; e2ee: E2EE; keyTick: number; keyVersion: number; onKeysUpdated: () => void };
@@ -21,6 +24,12 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, onKeysUp
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [hearts, setHearts] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<{ key: string; name: string; progress: number; controller: AbortController }[]>([]);
+  const [recSeconds, setRecSeconds] = useState<number | null>(null);
+  const recRef = useRef<Recording | null>(null);
+  const recTimer = useRef<ReturnType<typeof setInterval>>();
+  const fileInput = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout>>();
   const lastTypingEmit = useRef(0);
@@ -92,6 +101,65 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, onKeysUp
     }
   }
 
+  // ---------- attachments, voice notes, saving ----------
+  async function sendMedia(desc: Descriptor, caption: string | null) {
+    const body = e2ee.buildMessage(user.id, 'media', keyVersion, { t: 'media', text: caption, media: [desc], sentAt: Date.now() });
+    const r = await api<{ message: WireMessage }>('/messages', { method: 'POST', body: { ...body, mediaIds: mediaIdsOf([desc]) } });
+    commit(r.message);
+  }
+  async function uploadAndSend(file: Blob, name: string, opts: { durOverride?: number; voice?: boolean } = {}) {
+    const key = `${Date.now()}-${Math.random()}`;
+    const controller = new AbortController();
+    setUploads((u) => [...u, { key, name, progress: 0, controller }]);
+    try {
+      const desc = await prepareFile(file, { name, signal: controller.signal, onProgress: (f) => setUploads((u) => u.map((x) => (x.key === key ? { ...x, progress: f } : x))), ...opts });
+      await sendMedia(desc, null);
+    } catch (e) {
+      if (!(e instanceof MediaError && e.code === 'CANCELLED')) setErr(friendly(e)); // cancelling is not an error
+    } finally {
+      setUploads((u) => u.filter((x) => x.key !== key));
+    }
+  }
+  async function attach(files: FileList | null) {
+    setErr(null);
+    for (const f of Array.from(files ?? []).slice(0, 4)) await uploadAndSend(f, f.name);
+    if (fileInput.current) fileInput.current.value = '';
+  }
+  async function toggleRecord() {
+    setErr(null);
+    if (recRef.current) { // stop and send
+      clearInterval(recTimer.current);
+      const rec = recRef.current;
+      recRef.current = null;
+      setRecSeconds(null);
+      const { blob, seconds } = await rec.stop();
+      if (seconds < 0.5) return;
+      await uploadAndSend(blob, 'Voice note', { durOverride: seconds, voice: true });
+      return;
+    }
+    try {
+      recRef.current = await startRecording(300, () => { void toggleRecord(); });
+      const t0 = Date.now();
+      setRecSeconds(0);
+      recTimer.current = setInterval(() => setRecSeconds(Math.floor((Date.now() - t0) / 1000)), 500);
+    } catch (e) { setErr(friendly(e)); }
+  }
+  useEffect(() => () => { clearInterval(recTimer.current); recRef.current?.cancel(); }, []);
+
+  async function saveToMemories(m: ChatMessage) {
+    setErr(null); setNote(null);
+    const first = m.media?.[0];
+    const type = first ? memoryTypeFor(first) : 'message';
+    const payload = type && validateMemoryPayload({ v: 1, text: m.text ?? undefined, media: m.media, from: m.senderId === user.id ? user.displayName : partnerName, sentAt: Date.parse(m.createdAt) }, type);
+    if (!type || !payload) { setErr('This message can’t be saved to Our Memories.'); return; }
+    try {
+      const body = e2ee.buildMemory(user.id, type, keyVersion, payload);
+      await api('/memories', { method: 'POST', body: { ...body, eventDate: m.createdAt.slice(0, 10), mediaIds: mediaIdsOf(payload.media) } });
+      setNote('Saved to Our Memories ♥');
+      setTimeout(() => setNote(null), 3000);
+    } catch (e) { setErr(friendly(e)); }
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
@@ -131,10 +199,16 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, onKeysUp
                   {m.state === 'locked' && <span className="flex items-center gap-1 italic opacity-80"><Lock className="h-3 w-3" aria-hidden />Waiting for the key…</span>}
                   {m.state === 'tampered' && <span className="flex items-center gap-1 italic"><TriangleAlert className="h-3 w-3" aria-hidden />Couldn’t verify this message</span>}
                   {m.state === 'deleted' && <span className="italic opacity-70">Message deleted</span>}
-                  {(m.state === 'ok' || m.state === 'sending' || m.state === 'failed') && (m.kind === 'heart' ? <Heart className="h-7 w-7 fill-current" aria-label="Heart" /> : <p className="whitespace-pre-wrap break-words">{m.text}</p>)}
+                  {(m.state === 'ok' || m.state === 'sending' || m.state === 'failed') && (m.kind === 'heart' ? <Heart className="h-7 w-7 fill-current" aria-label="Heart" /> : (
+                    <>
+                      {m.media?.map((d) => <MediaView key={d.id} desc={d} />)}
+                      {m.text ? <p className="whitespace-pre-wrap break-words">{m.text}</p> : null}
+                    </>
+                  ))}
                   <p className="mt-0.5 flex items-center justify-end gap-2 text-[10px] opacity-70">
                     {m.state === 'failed' && <button className="underline" onClick={() => retry(m)}>Not sent — retry</button>}
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {m.id && m.state === 'ok' && m.kind !== 'heart' && <button aria-label="Save to Our Memories" className="opacity-0 transition group-hover:opacity-100 focus:opacity-100" onClick={() => saveToMemories(m)}><Bookmark className="h-3 w-3" /></button>}
                     {mine && m.id && m.state === 'ok' && <button aria-label="Delete message" className="opacity-0 transition group-hover:opacity-100 focus:opacity-100" onClick={() => remove(m)}><Trash2 className="h-3 w-3" /></button>}
                   </p>
                 </div>
@@ -144,9 +218,20 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, onKeysUp
         </ul>
         <div ref={endRef} />
       </div>
-      <p className="h-5 px-2 text-xs text-muted" aria-live="polite">{partnerTyping ? `${partnerName} is typing…` : ''}{err && <span role="alert" className="text-red-500">{err}</span>}</p>
+      {uploads.map((u) => (
+        <p key={u.key} className="flex items-center gap-2 px-2 text-xs text-muted" role="status">
+          Sending {u.name}… {Math.round(u.progress * 100)}%
+          <button className="underline" aria-label={`Cancel sending ${u.name}`} onClick={() => u.controller.abort()}><X className="inline h-3 w-3" /></button>
+        </p>
+      ))}
+      <p className="h-5 px-2 text-xs text-muted" aria-live="polite">{note && <span className="text-accent2">{note} </span>}{partnerTyping ? `${partnerName} is typing…` : ''}{err && <span role="alert" className="text-red-500">{err}</span>}</p>
       <form onSubmit={submit} className="flex items-center gap-2">
         <button type="button" className="btn-ghost" aria-label="Send a heart" onClick={() => send('heart', null)}><Heart className="h-5 w-5 text-accent" /></button>
+        <input ref={fileInput} type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" onChange={(e) => attach(e.target.files)} aria-hidden tabIndex={-1} />
+        <button type="button" className="btn-ghost" aria-label="Attach photo or video" onClick={() => fileInput.current?.click()}><Paperclip className="h-5 w-5" /></button>
+        <button type="button" className={`btn-ghost ${recSeconds !== null ? 'border-red-500 text-red-500' : ''}`} aria-label={recSeconds !== null ? 'Stop and send voice note' : 'Record a voice note'} aria-pressed={recSeconds !== null} onClick={toggleRecord}>
+          {recSeconds !== null ? <><Square className="h-4 w-4 fill-current" /><span className="text-xs tabular-nums">{recSeconds}s</span></> : <Mic className="h-5 w-5" />}
+        </button>
         <label className="sr-only" htmlFor="draft">Message</label>
         <input id="draft" className="input" placeholder="Write something sweet…" value={draft} maxLength={2000} onChange={(e) => onType(e.target.value)} autoComplete="off" />
         <button className="btn-primary" aria-label="Send message" disabled={!draft.trim()}><Send className="h-5 w-5" /></button>

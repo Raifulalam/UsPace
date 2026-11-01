@@ -10,6 +10,7 @@ const sendSchema = z.object({
   nonce: zB64Bytes(24),
   ciphertext: zB64Len(24, 22000),
   expiresInSec: z.number().int().min(5).max(30 * 86400).optional(),
+  mediaIds: z.array(zObjectId).max(4).optional(), // files referenced by this message (plaintext so the server can refcount them)
 }).strict();
 
 const listSchema = z.object({

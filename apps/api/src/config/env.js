@@ -11,6 +11,8 @@ const schema = z.object({
   MIN_AGE: z.coerce.number().int().min(13).default(18),
   INVITATION_TTL_HOURS: z.coerce.number().positive().default(72),
   BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(12),
+  MEDIA_DIR: z.string().default('./data/media'),
+  FREE_STORAGE_BYTES: z.coerce.number().int().positive().default(1073741824), // 1 GiB per couple on the free plan
   REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 });
 

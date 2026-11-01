@@ -11,6 +11,8 @@ import { connectSocket } from '@/lib/socket';
 import type { E2EE } from '@/lib/e2ee';
 import type { User } from '@/lib/types';
 import { drawBackground, exportPng, fit, renderLive, renderScene, type LiveItem } from '@/lib/canvasDraw';
+import { friendly, prepareFile } from '@/lib/mediaClient';
+import { mediaIdsOf, validateMemoryPayload } from '@couples/media-core';
 
 type CanvasMeta = { id: string; favorite: boolean; opCount: number; createdAt: string };
 type WireOp = { seq: number; clientOpId: string; senderId: string; senderDeviceId: string; keyVersion: number; nonce: string; ciphertext: string; createdAt: string };
@@ -43,6 +45,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
   const [conn, setConn] = useState<'connecting' | 'online' | 'offline'>('connecting');
   const [partnerDrawing, setPartnerDrawing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [cssW, setCssW] = useState(0);
   const [textEdit, setTextEditState] = useState<{ x: number; y: number; sid: string; value: string } | null>(null);
 
@@ -370,18 +373,27 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
   const download = async () => {
     const blob = await exportPng(scene.current);
     if (!blob) return;
-    // Inside the Android app a blob: link cannot be saved; hand the PNG to the app instead (browsers have no OurSpaceNative).
-    const native = (window as unknown as { OurSpaceNative?: { postMessage(m: string): void } }).OurSpaceNative;
-    if (native) {
-      const data = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] ?? ''); r.readAsDataURL(blob); });
-      native.postMessage(JSON.stringify({ type: 'saveImage', name: 'our-drawing.png', data }));
-      return;
-    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'our-drawing.png';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  const saveToMemories = async () => {
+    if (!activeId) return;
+    setErr(null); setInfo('Saving to Our Memories…');
+    try {
+      const png = await exportPng(scene.current);
+      if (!png) throw new Error('Could not export the drawing.');
+      const media = await prepareFile(png, { name: 'our-drawing.png' });
+      const payload = validateMemoryPayload({ v: 1, title: 'Our drawing', media: [media] }, 'drawing');
+      if (!payload) throw new Error('Could not save the drawing.');
+      const body = e2eeRef.current.buildMemory(user.id, 'drawing', kvRef.current, payload);
+      await api('/memories', { method: 'POST', body: { ...body, eventDate: new Date().toISOString().slice(0, 10), canvasId: activeId, mediaIds: mediaIdsOf(payload.media) } });
+      setInfo('Saved to Our Memories ♥');
+      setTimeout(() => setInfo(null), 3000);
+    } catch (e) { setInfo(null); setErr(friendly(e)); }
   };
 
   const active = canvases.find((c) => c.id === activeId);
@@ -400,6 +412,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
         <button className="btn-ghost" aria-label="New canvas" onClick={newCanvas}><Plus className="h-4 w-4" /></button>
         <button className="btn-ghost" aria-label={active?.favorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={!!active?.favorite} onClick={toggleFavorite}><Bookmark className={`h-4 w-4 ${active?.favorite ? 'fill-accent text-accent' : ''}`} /></button>
         <button className="btn-ghost" aria-label="Download as PNG" onClick={download}><Download className="h-4 w-4" /></button>
+        <button className="btn-ghost" onClick={saveToMemories}><Heart className="h-4 w-4 text-accent" aria-hidden />Save to Memories</button>
         <button className="btn-ghost" aria-label="Delete canvas" onClick={deleteCanvas}><Trash2 className="h-4 w-4" /></button>
         <p className="ml-auto text-xs text-muted" aria-live="polite">{partnerDrawing ? `💜 ${partnerName} is drawing…` : conn !== 'online' ? conn : 'end-to-end encrypted'}</p>
       </div>
@@ -435,6 +448,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
         </div>
       </div>
 
+      {info && <p role="status" className="mb-2 text-sm text-accent2">{info}</p>}
       {err && <p role="alert" className="mb-2 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{err} <button className="underline" onClick={() => setErr(null)}>dismiss</button></p>}
 
       <div ref={wrapRef} className="w-full">

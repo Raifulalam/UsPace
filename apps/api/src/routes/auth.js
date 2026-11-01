@@ -6,6 +6,7 @@ const { authLimiter } = require('../middleware/limiters');
 const { authenticate } = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const auth = require('../services/authService');
+const account = require('../services/accountService');
 const { publicUser } = require('../models/User');
 
 const COOKIE = 'rt';
@@ -22,7 +23,7 @@ const send = (res, status, { user, session }) => {
   res.status(status).json({ data: { user: publicUser(user), accessToken: session.accessToken } });
 };
 
-const password = z.string().min(10).refine((p) => Buffer.byteLength(p) <= 72, 'Password too long (max 72 bytes)');
+const { passwordSchema: password } = require('../schemas/password');
 const registerSchema = z.object({
   username: z.string().regex(/^[a-zA-Z0-9_.]{3,24}$/, '3-24 letters, numbers, _ or .'),
   email: z.string().email().max(254),
@@ -42,11 +43,6 @@ router.post('/login', authLimiter, validate(loginSchema), asyncHandler(async (re
 router.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
   send(res, 200, await auth.refresh(req.cookies?.[COOKIE], ctx(req)));
 }));
-const nativeSchema = z.object({ webRefreshToken: z.string().min(20).max(200) }).strict();
-// Takes the token in the BODY (never the cookie), so a browser can't be tricked into calling it with its ambient cookie.
-router.post('/native-session', authLimiter, validate(nativeSchema), asyncHandler(async (req, res) => {
-  send(res, 200, await auth.nativeSession(req.body.webRefreshToken, ctx(req)));
-}));
 router.post('/logout', asyncHandler(async (req, res) => {
   await auth.logout(req.cookies?.[COOKIE]);
   res.clearCookie(COOKIE, { ...cookieOpts(), maxAge: undefined });
@@ -55,6 +51,22 @@ router.post('/logout', asyncHandler(async (req, res) => {
 router.post('/verify-email', authLimiter, validate(verifySchema), asyncHandler(async (req, res) => {
   const user = await auth.verifyEmail(req.body.token);
   res.json({ data: { user: publicUser(user) } });
+}));
+const forgotSchema = z.object({ email: z.string().email().max(254) }).strict();
+const resetSchema = z.object({ token: z.string().min(10).max(200), password }).strict();
+const cancelSchema = z.object({ identifier: z.string().min(1).max(254), password: z.string().min(1).max(200) }).strict();
+
+router.post('/password/forgot', authLimiter, validate(forgotSchema), asyncHandler(async (req, res) => {
+  await account.requestPasswordReset(req.body.email);
+  res.status(202).json({ data: { message: 'If that email has an account, a reset link is on its way.' } }); // identical whether or not the account exists
+}));
+router.post('/password/reset', authLimiter, validate(resetSchema), asyncHandler(async (req, res) => {
+  await account.confirmPasswordReset(req.body.token, req.body.password);
+  res.status(204).end();
+}));
+router.post('/deletion/cancel', authLimiter, validate(cancelSchema), asyncHandler(async (req, res) => {
+  await account.cancelDeletion(req.body.identifier, req.body.password);
+  res.status(204).end();
 }));
 router.get('/me', authenticate, (req, res) => res.json({ data: { user: publicUser(req.user) } }));
 

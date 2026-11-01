@@ -39,40 +39,6 @@ class Api(private val store: Store) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // Used only for the one-time web-session exchange; it carries no cookies of its own.
-    private val bare = client.newBuilder().cookieJar(CookieJar.NO_COOKIES).build()
-
-    class Exchange(val data: JSONObject, val refreshToken: String)
-
-    /**
-     * Sends the website's refresh token (read natively from the WebView cookie store, never via JavaScript) to the API once, over HTTPS,
-     * and gets back this app's OWN session. The web token is not rotated by this call. Nothing is persisted here; see [adopt].
-     */
-    suspend fun exchangeWebSession(webRefreshToken: String): Exchange = withContext(Dispatchers.IO) {
-        val url = base() + "/api/v1/auth/native-session"
-        require(url.startsWith("https://") || BuildConfig.DEBUG) { "https required" }
-        val req = Request.Builder().url(url).post(JSONObject().put("webRefreshToken", webRefreshToken).toString().toRequestBody(json)).build()
-        bare.newCall(req).execute().use { resp ->
-            val text = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) {
-                val code = runCatching { JSONObject(text).getJSONObject("error").getString("code") }.getOrDefault("HTTP_${resp.code}")
-                throw ApiException(resp.code, code)
-            }
-            val rt = Cookie.parseAll(resp.request.url, resp.headers).firstOrNull { it.name == "rt" }?.value
-                ?: throw ApiException(502, "NO_SESSION_COOKIE")
-            Exchange(JSONObject(text).getJSONObject("data"), rt)
-        }
-    }
-
-    /** Makes an exchanged session the app's session. Serialised with refresh so the two never race. */
-    suspend fun adopt(ex: Exchange) = refreshLock.withLock {
-        store.refreshCookie = ex.refreshToken
-        accessToken = ex.data.getString("accessToken")
-    }
-
-    /** Drops this app's session tokens (memory and storage). Device keys are untouched. */
-    suspend fun dropSession() = refreshLock.withLock { store.refreshCookie = null; accessToken = null }
-
     private fun base() = store.baseUrl.trim().trimEnd('/')
 
     fun forget() { accessToken = null }

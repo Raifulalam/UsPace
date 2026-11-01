@@ -12,6 +12,7 @@ const schema = new mongoose.Schema(
     kind: { type: String, enum: ['text', 'media', 'sticker', 'heart'], required: true },
     nonce: String,
     ciphertext: String,
+    mediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MediaAsset' }], // plaintext on purpose: lets the server refcount files
     deletedAt: Date,
     expiresAt: { type: Date, index: { expireAfterSeconds: 0 } }, // disappearing messages
   },
@@ -19,4 +20,5 @@ const schema = new mongoose.Schema(
 );
 schema.index({ coupleId: 1, _id: -1 });
 schema.index({ senderId: 1, clientMsgId: 1 }, { unique: true });
+schema.index({ coupleId: 1, mediaIds: 1 });
 module.exports = mongoose.model('Message', schema);

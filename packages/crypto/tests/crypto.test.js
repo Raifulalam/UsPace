@@ -70,3 +70,41 @@ test('encryptRaw/decryptRaw bind to the AAD string', () => {
   expect(() => c.decryptRaw(key, enc, 'ctx|canvas2|alice|op1|1')).toThrow();
   expect(() => c.decryptRaw(key, enc, 'ctx|canvas1|bob|op1|1')).toThrow();
 });
+
+describe('file encryption', () => {
+  const CH = 16; // tiny chunk so multi-chunk paths run fast
+  const concat = (parts) => Buffer.concat(parts.map((p) => Buffer.from(p)));
+  const sample = (n) => Uint8Array.from({ length: n }, (_, i) => (i * 7 + 3) % 256);
+  const expectedSize = (n) => 24 + n + 17 * Math.max(1, Math.ceil(n / CH));
+
+  test.each([0, 1, 15, 16, 17, 32, 100])('round-trips %i bytes and matches the size formula', (n) => {
+    const key = c.generateFileKey();
+    const data = sample(n);
+    const enc = concat(c.encryptFile(key, data, CH));
+    expect(enc.length).toBe(expectedSize(n));
+    expect(concat(c.decryptFile(key, new Uint8Array(enc), CH))).toEqual(Buffer.from(data));
+  });
+
+  test('the default chunk size matches the shared constant (1 MiB)', () => {
+    expect(c.FILE_CHUNK).toBe(1 << 20);
+  });
+
+  test('wrong key, flipped bit, truncation, extra bytes and reordering all fail', () => {
+    const key = c.generateFileKey();
+    const enc = new Uint8Array(concat(c.encryptFile(key, sample(50), CH)));
+    expect(() => c.decryptFile(c.generateFileKey(), enc, CH)).toThrow();
+    const flipped = enc.slice(); flipped[40] ^= 1;
+    expect(() => c.decryptFile(key, flipped, CH)).toThrow();
+    expect(() => c.decryptFile(key, enc.slice(0, enc.length - (CH + 17)), CH)).toThrow(); // dropped final chunk
+    expect(() => c.decryptFile(key, enc.slice(0, enc.length - 3), CH)).toThrow();
+    expect(() => c.decryptFile(key, Uint8Array.from([...enc, 0]), CH)).toThrow();
+    const step = CH + 17;
+    const swapped = Uint8Array.from([...enc.slice(0, 24), ...enc.slice(24 + step, 24 + 2 * step), ...enc.slice(24, 24 + step), ...enc.slice(24 + 2 * step)]);
+    expect(() => c.decryptFile(key, swapped, CH)).toThrow();
+    expect(() => c.decryptFile(key, new Uint8Array(10), CH)).toThrow();
+  });
+
+  test('file keys are 32 bytes in the canonical base64 shape the descriptor validator expects', () => {
+    expect(c.toBase64(c.generateFileKey())).toMatch(/^[A-Za-z0-9+/]{43}=$/);
+  });
+});

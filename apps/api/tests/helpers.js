@@ -17,6 +17,11 @@ require('../src/models/Message');
 require('../src/models/RecoveryBlob');
 require('../src/models/Canvas');
 require('../src/models/CanvasOp');
+require('../src/models/MediaAsset');
+require('../src/models/Memory');
+require('../src/models/Album');
+require('../src/models/Block');
+require('../src/models/Report');
 
 // Use TEST_MONGODB_URI (e.g. mongodb://127.0.0.1:27017) to test against a real local MongoDB instead of
 // downloading an in-memory binary. Each test file gets its own random database, dropped afterwards.

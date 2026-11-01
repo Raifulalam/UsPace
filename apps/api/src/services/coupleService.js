@@ -4,6 +4,8 @@ const Couple = require('../models/Couple');
 const Invitation = require('../models/Invitation');
 const AppError = require('../utils/AppError');
 const { generateInviteCode, hashInviteCode } = require('../utils/crypto');
+const safety = require('./safetyService');
+const MAX_INVITES_PER_DAY = 10;
 
 const MAX_OPEN_INVITES = 3;
 const now = () => new Date();
@@ -56,6 +58,9 @@ async function createInvitation(user) {
     { coupleId: couple._id, status: { $in: ['pending', 'accepted'] }, expiresAt: { $lt: now() } },
     { $set: { status: 'expired', resolvedAt: now() } }
   );
+  if ((await Invitation.countDocuments({ inviterId: user._id, createdAt: { $gt: new Date(Date.now() - 86400000) } })) >= MAX_INVITES_PER_DAY) {
+    throw new AppError(429, 'TOO_MANY_INVITES', 'You have created many invitations today. Try again tomorrow.');
+  }
   const open = await Invitation.countDocuments({ coupleId: couple._id, status: { $in: ['pending', 'accepted'] } });
   if (open >= MAX_OPEN_INVITES) throw new AppError(429, 'TOO_MANY_INVITES', 'Revoke an existing invitation first');
 
@@ -83,6 +88,9 @@ async function acceptInvitation(user, rawCode) {
   if (await Invitation.exists({ inviteeId: user._id, status: 'accepted' })) {
     throw new AppError(409, 'ALREADY_PENDING', 'You already have an invitation awaiting confirmation');
   }
+  // A blocked person (either direction) gets the same generic answer as a wrong code: no hint that a block exists.
+  const pre = await Invitation.findOne({ codeHash: hashInviteCode(rawCode), status: 'pending' }).select('inviterId');
+  if (pre && (await safety.isBlockedEitherWay(user._id, pre.inviterId))) throw new AppError(404, 'INVALID_INVITATION', 'Invitation code is invalid or expired');
   const inv = await Invitation.findOneAndUpdate(
     { codeHash: hashInviteCode(rawCode), status: 'pending', expiresAt: { $gt: now() }, inviterId: { $ne: user._id } },
     { $set: { status: 'accepted', inviteeId: user._id, acceptedAt: now() } },
@@ -109,6 +117,8 @@ async function confirmInvitation(user, invitationId) {
     await Invitation.updateOne({ _id: inv._id }, { $set: { status, resolvedAt: now() } });
     throw new AppError(409, code, msg);
   };
+
+  if (await safety.isBlockedEitherWay(inv.inviterId, inv.inviteeId)) await fail('rejected', 'INVITEE_UNAVAILABLE', 'That person can no longer join');
 
   // 1) Attach the invitee, only if they are still free and active.
   const attach = await User.updateOne(

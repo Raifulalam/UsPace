@@ -3,4 +3,7 @@
 async function sendVerificationEmail(email, token) {
   if (process.env.NODE_ENV === 'development') console.log(`[mailer:dev] verify ${email} -> token=${token}`);
 }
-module.exports = { sendVerificationEmail };
+async function sendPasswordResetEmail(email, token) {
+  if (process.env.NODE_ENV === 'development') console.log(`[mailer:dev] password reset for ${email}: ${process.env.CLIENT_ORIGIN}/reset?token=${token}`);
+}
+module.exports = { sendVerificationEmail, sendPasswordResetEmail };

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/session';
 import { ApiError } from '@/lib/api';
 
 function explain(e: unknown): string {
+  if (e instanceof ApiError && e.code === 'ACCOUNT_SUSPENDED') return 'This account is suspended or scheduled for deletion. If you deleted it by mistake you can restore it within 14 days.';
   if (!(e instanceof ApiError)) return 'Could not reach the server. Is it running?';
   if (Array.isArray(e.details) && e.details.length) return e.details.map((d: { path: string; message: string }) => `${d.path}: ${d.message}`).join(' · ');
   return e.message;
@@ -65,6 +66,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <button className="btn-primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}</button>
       </form>
       <p className="text-center text-sm text-muted">
+        {mode === 'login' && <><Link className="text-accent2 underline" href="/forgot">Forgot your password?</Link> · <Link className="text-accent2 underline" href="/restore">Restore a deleted account</Link><br /></>}
         {mode === 'login' ? <>New here? <Link className="text-accent2 underline" href="/register">Create an account</Link></> : <>Already have an account? <Link className="text-accent2 underline" href="/login">Log in</Link></>}
       </p>
     </main>

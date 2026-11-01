@@ -12,6 +12,9 @@ declare module '@couples/crypto' {
   export function decryptPayload(roomKey: Uint8Array, enc: Enc, aad: AadFields): any;
   export function encryptRaw(roomKey: Uint8Array, payload: unknown, aadString: string): Enc;
   export function decryptRaw(roomKey: Uint8Array, enc: Enc, aadString: string): any;
+  export function generateFileKey(): Uint8Array;
+  export function encryptFile(fileKey: Uint8Array, bytes: Uint8Array, chunk?: number): Uint8Array[];
+  export function decryptFile(fileKey: Uint8Array, data: Uint8Array, chunk?: number): Uint8Array[];
   export function safetyNumber(publicKeysB64: string[]): string;
   export function generateRecoveryKey(): Uint8Array;
   export function formatRecoveryKey(key: Uint8Array): string;

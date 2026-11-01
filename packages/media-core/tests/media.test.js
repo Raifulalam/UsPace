@@ -96,3 +96,27 @@ test('formatBytes', () => {
   assert.equal(m.formatBytes(2048), '2 KB');
   assert.equal(m.formatBytes(5 * 1024 * 1024), '5.0 MB');
 });
+
+test('groupByMonth groups consecutive items by UTC month', () => {
+  const items = [{ d: '2024-03-20T00:00:00.000Z' }, { d: '2024-03-01' }, { d: '2024-02-28' }, { d: '2023-12-25' }, { d: '2024-03-02' }];
+  const g = m.groupByMonth(items, (x) => x.d);
+  assert.deepEqual(g.map((x) => [x.key, x.items.length]), [['2024-03', 2], ['2024-02', 1], ['2023-12', 1], ['2024-03', 1]]);
+  assert.deepEqual(m.groupByMonth([], (x) => x), []);
+});
+
+test('matchesQuery: every word, ignoring case and accents', () => {
+  assert.equal(m.matchesQuery(['Our first trip to Café Roma', 'sunny'], 'cafe ROMA'), true);
+  assert.equal(m.matchesQuery(['Our first trip'], 'first paris'), false);
+  assert.equal(m.matchesQuery([undefined, null, ''], 'x'), false);
+  assert.equal(m.matchesQuery(['anything'], '   '), true);
+});
+
+test('mediaIdsOf lists files and thumbnails once; memoryTypeFor maps kinds', () => {
+  const t = 'b'.repeat(24);
+  assert.deepEqual(m.mediaIdsOf([desc({ thumb: { id: t, key: KEY, mime: 'image/jpeg', w: 1, h: 1 } }), desc({ id: t })]), [ID, t]);
+  assert.deepEqual(m.mediaIdsOf(undefined), []);
+  assert.equal(m.memoryTypeFor({ mime: 'image/png' }), 'photo');
+  assert.equal(m.memoryTypeFor({ mime: 'video/mp4' }), 'video');
+  assert.equal(m.memoryTypeFor({ mime: 'audio/webm' }), 'voice');
+  assert.equal(m.memoryTypeFor({ mime: 'text/html' }), null);
+});

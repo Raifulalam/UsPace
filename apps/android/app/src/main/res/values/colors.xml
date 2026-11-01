@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources> <!-- match the website's light/dark theme (apps/web globals.css) -->
-    <color name="app_bg">#F8F4FF</color>
-    <color name="app_ink">#1B1B3A</color>
-    <color name="icon_bg">#4A1456</color>
-    <color name="brand_plum">#2B0F3A</color>
-    <color name="brand_text">#F6EAF8</color>
-    <color name="brand_muted">#CDB4D6</color>
-</resources>

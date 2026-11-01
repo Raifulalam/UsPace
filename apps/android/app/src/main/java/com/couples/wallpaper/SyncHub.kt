@@ -39,9 +39,6 @@ object SyncHub {
         private set
     @Volatile var scene = Scene(emptyList(), emptyList(), BgOp(DEFAULT_BG_COLOR, "none"))
         private set
-    /** Partner's display name (the member who is not me), from /couples/me. Empty until known. */
-    @Volatile var partnerName = ""
-        private set
     val live = ConcurrentHashMap<String, LiveItem>()
 
     private lateinit var appCtx: Context
@@ -91,7 +88,7 @@ object SyncHub {
     fun restart() {
         synchronized(lock) {
             job?.cancel(); job = null
-            resetCanvas(); roomKeys.clear(); partnerName = ""
+            resetCanvas(); roomKeys.clear()
             if (refs > 0) job = scope.launch { runLoop() }
         }
     }
@@ -130,13 +127,6 @@ object SyncHub {
         }
         if (couple.getString("status") != "active") { setStatus(Status.NO_COUPLE); return }
         coupleId = couple.getString("id")
-        val members = couple.optJSONArray("members")
-        var name = ""
-        if (members != null) for (i in 0 until members.length()) {
-            val m = members.optJSONObject(i) ?: continue
-            if (m.optString("id") != store.userId) { name = m.optString("displayName").ifEmpty { m.optString("username") }; break }
-        }
-        if (name != partnerName) { partnerName = name; version++ }
         val current = couple.getInt("keyVersion")
         syncKeys()
         if (!roomKeys.containsKey(current)) { setStatus(Status.WAITING_APPROVAL); return }

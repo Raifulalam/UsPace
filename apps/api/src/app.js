@@ -9,9 +9,9 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1)); // 1 = Render only; 2 = Vercel proxy -> Render (so rate limits use the real client IP)
+  app.set('trust proxy', 1); // behind one reverse proxy/load balancer
   app.use(helmet());
-  app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
+  app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true, exposedHeaders: ['Content-Length'] }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
   app.use(generalLimiter);
@@ -24,6 +24,10 @@ function createApp() {
   app.use('/api/v1/keys', require('./routes/keys'));
   app.use('/api/v1/messages', require('./routes/messages'));
   app.use('/api/v1/canvases', require('./routes/canvases'));
+  app.use('/api/v1/media', require('./routes/media'));
+  app.use('/api/v1/users', require('./routes/users'));
+  app.use('/api/v1/safety', require('./routes/safety'));
+  app.use('/api/v1/memories', require('./routes/memories'));
 
   app.use(notFound);
   app.use(errorHandler);

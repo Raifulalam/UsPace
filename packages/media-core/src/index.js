@@ -98,7 +98,46 @@ function decodeCursor(c) {
   return m ? { ms: Number(m[1]), id: m[2] } : null;
 }
 
+// ---------- helpers used by the Memories screen (pure, so they are testable) ----------
+/** 'YYYY-MM' of an ISO date or YYYY-MM-DD string, in UTC (memories are calendar dates, not instants). */
+const monthKey = (iso) => String(iso).slice(0, 7);
+
+/** Groups an already-sorted list into consecutive month buckets: [{ key, items }]. */
+function groupByMonth(items, getDate) {
+  const groups = [];
+  for (const item of items) {
+    const key = monthKey(getDate(item));
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(item);
+    else groups.push({ key, items: [item] });
+  }
+  return groups;
+}
+
+/** Case/accent-insensitive "every word must appear somewhere" search over decrypted text parts. */
+function matchesQuery(parts, query) {
+  const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const words = norm(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = norm(parts.filter((p) => typeof p === 'string' && p).join(' \n '));
+  return words.every((w) => hay.includes(w));
+}
+
+/** Every server-side file id a set of descriptors needs referenced (the file and its thumbnail), de-duplicated. */
+function mediaIdsOf(descriptors) {
+  const ids = [];
+  for (const d of descriptors || []) for (const id of [d.id, d.thumb && d.thumb.id]) if (id && !ids.includes(id)) ids.push(id);
+  return ids;
+}
+
+/** Which memory type a descriptor naturally becomes when saved from chat. */
+function memoryTypeFor(descriptor) {
+  const kind = MIME_KIND[descriptor.mime];
+  return kind === 'image' ? 'photo' : kind === 'video' ? 'video' : kind === 'audio' ? 'voice' : null;
+}
+
 module.exports = {
+  monthKey, groupByMonth, matchesQuery, mediaIdsOf, memoryTypeFor,
   CHUNK, HEADER, ABYTES, LIMITS, MIME_KIND, MEMORY_TYPES,
   kindForMime, encryptedSize, formatBytes, sniffMime, validateDescriptor, validateThumb, validateMemoryPayload, encodeCursor, decodeCursor,
 };
