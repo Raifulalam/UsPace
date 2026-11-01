@@ -42,6 +42,11 @@ router.post('/login', authLimiter, validate(loginSchema), asyncHandler(async (re
 router.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
   send(res, 200, await auth.refresh(req.cookies?.[COOKIE], ctx(req)));
 }));
+const nativeSchema = z.object({ webRefreshToken: z.string().min(20).max(200) }).strict();
+// Takes the token in the BODY (never the cookie), so a browser can't be tricked into calling it with its ambient cookie.
+router.post('/native-session', authLimiter, validate(nativeSchema), asyncHandler(async (req, res) => {
+  send(res, 200, await auth.nativeSession(req.body.webRefreshToken, ctx(req)));
+}));
 router.post('/logout', asyncHandler(async (req, res) => {
   await auth.logout(req.cookies?.[COOKIE]);
   res.clearCookie(COOKIE, { ...cookieOpts(), maxAge: undefined });

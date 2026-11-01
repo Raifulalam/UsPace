@@ -162,7 +162,7 @@ class MainActivity : Activity(), WebViewManager.Host {
     }
 
     override fun onResume() { super.onResume(); webView.onResume() }
-    override fun onPause() { webView.onPause(); super.onPause() }
+    override fun onPause() { webView.onPause(); android.webkit.CookieManager.getInstance().flush(); super.onPause() }
     override fun onDestroy() { (webView.parent as? ViewGroup)?.removeView(webView); webView.destroy(); super.onDestroy() }
 
     private companion object { const val REQ_FILE = 1001; const val REQ_SAVE = 1002 }

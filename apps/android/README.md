@@ -1,7 +1,7 @@
 # Our Space (Android app: website + live wallpaper)
 
 One APK. On launch it shows the **existing Our Space website** (`https://wespc.vercel.app`) in a locked-down WebView, with a small native bar:
-**Home** (the website), **Wallpaper** (native: sign this phone in as a device, approval code, "Set as live wallpaper", lock-screen privacy), **Settings** (reload, wallpaper screen, Android app settings).
+**Home** (the website), **Wallpaper** (native: link this phone as a device, approval code, "Set as live wallpaper", lock-screen privacy), **Settings** (reload, wallpaper screen, Android app settings).
 
 ## Files
 - `MainActivity.kt` - WebView host, splash, edge-to-edge, back button, file chooser, error/offline screen, auto-retry on reconnect.
@@ -23,6 +23,16 @@ The API's refresh cookie is `SameSite=Strict`, and `wespc.vercel.app` / `uspace-
 - **Render env:** `CLIENT_ORIGIN=https://wespc.vercel.app`, `TRUST_PROXY_HOPS=2` (so rate limits and lockouts see each user's real IP, not Vercel's).
 - Watch for: a sleeping Render free instance can take longer than Vercel's proxy timeout on the first request (504). Retry, or keep the instance awake.
 - Alternative without a proxy: custom domains `app.you.com` + `api.you.com`.
+
+## Single sign-in (log in once, in the website)
+**Why the wallpaper used to ask again:** the website's login lives in the WebView (an httpOnly refresh cookie plus an access token held in page memory). The native wallpaper code runs outside the WebView and had its own separate storage and its own login form, so it could not see the web session.
+**Now:** opening Wallpaper makes the app read the website's refresh cookie from the WebView cookie store (native code can read httpOnly cookies; page JavaScript cannot) and send it once, over HTTPS, in the body of `POST /api/v1/auth/native-session`. The API checks it WITHOUT rotating it and issues the app its own session (new token family, linked to the web session). The wallpaper screen has no login form any more.
+- No token ever passes through JavaScript or the `OurSpaceNative` bridge (which is still origin-restricted and only accepts `openWallpaper` and `saveImage`).
+- The app's session is stored in Keystore-backed `EncryptedSharedPreferences` (`Store`). Device registration (`POST /devices`) and approval still run under the authenticated user's token and still need approval on an existing device.
+- Logout: signing out in the website revokes the linked app session on the server (and replay-detection on the web session does too). With the website signed out, opening Wallpaper also drops the app's tokens and asks you to sign in to Our Space. Device keys stay on the phone unless you tap "Forget this phone's wallpaper keys".
+- Account switch: if the website's user differs from the user the phone's device keys belong to, the old device identity and room keys are wiped before the new account is linked.
+- Expired session: the app only asks for a login when the website's own session is gone or expired.
+- Needs the API redeployed (new endpoint, `RefreshToken.parentFamilyId`).
 
 ## Two devices, two approvals
 The website inside the WebView is one encrypted device (keys in WebView storage). The live wallpaper is a second device (keys in the Android Keystore). Each is approved separately; manage/revoke both in the website's Security panel.
@@ -61,7 +71,7 @@ decrypts drawing operations **on the phone**, and draws them. The server never s
 3. Emulator (debug build): server address `http://10.0.2.2:4000` (the emulator's name for your PC).
    Real phone: use your PC's LAN address, e.g. `http://192.168.1.20:4000`; allow port 4000 in Windows Firewall; phone and PC on the same Wi-Fi.
    Debug builds allow `http`; release builds require `https`.
-4. Run the app, sign in. It shows **"Waiting for approval"** and a 6-group code.
+4. Run the app, sign in in the website, then open Wallpaper. It shows **"Waiting for approval"** and a 6-group code.
 5. In Our Space (web, on a device that already works) a banner appears: *New device "Android live wallpaper (...)"*.
    Check that the **code matches**, then tap **Approve**. The phone's status turns to "Connected".
 6. Tap **Set as live wallpaper** and confirm in Android's picker.
