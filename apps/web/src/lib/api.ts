@@ -1,6 +1,10 @@
 import type { User } from './types';
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+// Direct API address (used by sockets, and by REST in local dev).
+export const SOCKET_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+// Production: NEXT_PUBLIC_API_PROXY=1 sends REST calls to this site's own origin; next.config.mjs rewrites /api/v1/* to the API.
+// That makes the SameSite=Strict refresh cookie first-party, so login persists without weakening the cookie.
+export const API_BASE = process.env.NEXT_PUBLIC_API_PROXY === '1' ? '' : SOCKET_BASE;
 
 // The access token lives ONLY in memory (never localStorage). The refresh token is an httpOnly cookie.
 let accessToken: string | null = null;
@@ -42,7 +46,7 @@ export function tryRefresh(): Promise<User | null> {
 }
 
 function send(path: string, o: Opts): Promise<Response> {
-  const url = new URL(`${API_BASE}/api/v1${path}`);
+  const url = new URL(`${API_BASE}/api/v1${path}`, window.location.origin);
   for (const [k, v] of Object.entries(o.query ?? {})) if (v != null) url.searchParams.set(k, String(v));
   const headers: Record<string, string> = {};
   if (o.body !== undefined) headers['Content-Type'] = 'application/json';

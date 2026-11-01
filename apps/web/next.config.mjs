@@ -1,4 +1,6 @@
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// With NEXT_PUBLIC_API_PROXY=1, the browser calls /api/v1/* on this site and Next forwards it to the API (same-origin cookies).
+const proxy = process.env.NEXT_PUBLIC_API_PROXY === '1';
 const isProd = process.env.NODE_ENV === 'production';
 
 // NOTE: 'unsafe-inline' scripts are required by Next's inline bootstrap unless nonces are wired up.
@@ -18,6 +20,9 @@ export default {
   webpack(config, { isServer }) {
     if (!isServer) config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false, crypto: false };
     return config;
+  },
+  async rewrites() {
+    return proxy ? [{ source: '/api/v1/:path*', destination: `${API}/api/v1/:path*` }] : [];
   },
   async headers() {
     return [{

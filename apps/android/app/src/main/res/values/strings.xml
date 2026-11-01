@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Our Space Wallpaper</string>
+    <string name="app_name">Our Space</string>
+    <string name="wallpaper_label">Our Space Live Wallpaper</string>
+    <string name="wallpaper_screen_title">Our Space Wallpaper</string>
     <string name="wallpaper_description">Your partner\'s drawing, live. End-to-end encrypted.</string>
 </resources>

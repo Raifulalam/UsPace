@@ -370,6 +370,13 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
   const download = async () => {
     const blob = await exportPng(scene.current);
     if (!blob) return;
+    // Inside the Android app a blob: link cannot be saved; hand the PNG to the app instead (browsers have no OurSpaceNative).
+    const native = (window as unknown as { OurSpaceNative?: { postMessage(m: string): void } }).OurSpaceNative;
+    if (native) {
+      const data = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] ?? ''); r.readAsDataURL(blob); });
+      native.postMessage(JSON.stringify({ type: 'saveImage', name: 'our-drawing.png', data }));
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'our-drawing.png';

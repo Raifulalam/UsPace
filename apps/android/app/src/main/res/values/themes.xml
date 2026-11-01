@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OurSpace" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <style name="Theme.OurSpace.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_plum</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_heart</item>
+        <item name="postSplashScreenTheme">@style/Theme.OurSpace</item>
+    </style>
+</resources>

@@ -8,6 +8,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -19,14 +20,14 @@ class LiveItem(
     @Volatile var lastAt: Long = System.currentTimeMillis(),
 )
 
-/** Draws the shared canvas (logical 1000x700 space) fitted and centred on the screen. Mirrors canvasDraw.ts. */
+/** Draws the shared canvas (logical 1000x700 space) so it COVERS the whole screen (centred; overflow is cropped). Mirrors canvasDraw.ts. */
 class CanvasRenderer {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val heart = Path()
 
-    fun drawScene(c: Canvas, width: Int, height: Int, scene: Scene, live: Collection<LiveItem>) {
+    fun drawScene(c: Canvas, width: Int, height: Int, scene: Scene, live: Collection<LiveItem>, partnerName: String = "") {
         c.drawColor(scene.bg.color)
-        val scale = min(width.toFloat() / W, height.toFloat() / H)
+        val scale = max(width.toFloat() / W, height.toFloat() / H) // cover, not fit: no empty bands
         val ox = (width - W * scale) / 2f
         val oy = (height - H * scale) / 2f
         c.save()
@@ -39,6 +40,27 @@ class CanvasRenderer {
         c.restoreToCount(layer)
         for (it in live) drawLive(c, it)
         c.restore()
+        drawPartnerLabel(c, width, height, partnerName)
+    }
+
+    /** Small pill near the bottom: "Drawing with <partner>". Dark translucent backing keeps it readable on any canvas colour. */
+    private fun drawPartnerLabel(c: Canvas, width: Int, height: Int, rawName: String) {
+        val name = rawName.filter { !it.isISOControl() }.trim().take(30)
+        if (name.isEmpty()) return
+        val label = "With $name"
+        val textSize = (width * 0.04f).coerceIn(28f, 56f)
+        paint.reset(); paint.isAntiAlias = true
+        paint.textSize = textSize
+        paint.isFakeBoldText = true
+        val tw = paint.measureText(label)
+        val padX = textSize * 0.9f; val padY = textSize * 0.5f
+        val w = tw + padX * 2; val h = textSize + padY * 2
+        val left = (width - w) / 2f
+        val top = height * 0.90f - h
+        paint.style = Paint.Style.FILL; paint.color = 0x88000000.toInt()
+        c.drawRoundRect(RectF(left, top, left + w, top + h), h / 2f, h / 2f, paint)
+        paint.color = 0xFFFFFFFF.toInt()
+        c.drawText(label, left + padX, top + padY - paint.ascent(), paint)
     }
 
     /** Neutral screen shown when sharing is locked, not set up, or waiting. No drawing content is rendered. */

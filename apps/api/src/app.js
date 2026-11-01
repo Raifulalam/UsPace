@@ -9,7 +9,7 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1); // behind one reverse proxy/load balancer
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1)); // 1 = Render only; 2 = Vercel proxy -> Render (so rate limits use the real client IP)
   app.use(helmet());
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '100kb' }));

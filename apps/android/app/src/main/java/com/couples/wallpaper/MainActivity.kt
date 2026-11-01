@@ -1,172 +1,169 @@
 package com.couples.wallpaper
 
 import android.app.Activity
-import android.app.WallpaperManager
-import android.content.ComponentName
 import android.content.Intent
-import android.graphics.Typeface
-import android.os.Build
+import android.content.res.Configuration
+import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.Uri
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
-import android.view.View
+import android.view.ViewGroup
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebView
 import android.widget.Button
-import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
+import android.widget.ProgressBar
 import android.widget.TextView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import org.json.JSONObject
+import android.widget.Toast
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
-/** Setup screen: sign in, register this phone as a device, wait for approval, then pick the live wallpaper. */
-class MainActivity : Activity() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private lateinit var root: LinearLayout
-    private var ticker: Job? = null
-    private var shownKey = ""
-    private var statusView: TextView? = null
-    private var codeView: TextView? = null
+/** Entry point: shows the existing Our Space website (WebView) with a small native bar for wallpaper features. */
+class MainActivity : Activity(), WebViewManager.Host {
+    private lateinit var webView: WebView
+    private lateinit var progress: ProgressBar
+    private lateinit var errorView: LinearLayout
+    private lateinit var errorText: TextView
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingSave: Pair<String, ByteArray>? = null
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var showingError = false
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen() // must run before super.onCreate
         super.onCreate(savedInstanceState)
-        SyncHub.init(this)
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(32), dp(20), dp(32)) }
-        setContentView(ScrollView(this).apply { addView(root) })
+
+        val bg = getColor(R.color.app_bg)
+        val ink = getColor(R.color.app_ink)
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        // Edge-to-edge: the window draws behind the system bars; the root pads itself by the bar/keyboard insets.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
+        val root = FrameLayout(this).apply { setBackgroundColor(bg) }
+        webView = WebView(this).apply { setBackgroundColor(bg) }
+        val nav = NativeNavigation(this, goHome = { loadHome() }, reload = { reloadPage() })
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(nav.buildBar(ink, bg), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        root.addView(column, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; visibility = android.view.View.GONE }
+        root.addView(progress, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)))
+
+        val plumText = getColor(R.color.brand_text)
+        errorText = TextView(this).apply { textSize = 16f; setTextColor(getColor(R.color.brand_muted)); gravity = Gravity.CENTER; setPadding(dp(24), 0, dp(24), dp(16)) }
+        errorView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundResource(R.drawable.bg_plum); visibility = android.view.View.GONE
+            isClickable = true
+            fun pill(label: String, res: Int, onClick: () -> Unit) = Button(context).apply {
+                text = label; isAllCaps = false; setTextColor(Color.WHITE); setBackgroundResource(res); setOnClickListener { onClick() }
+                layoutParams = LinearLayout.LayoutParams(dp(240), dp(48)).apply { topMargin = dp(12) }
+            }
+            addView(TextView(context).apply { text = "Our Space"; textSize = 26f; setTextColor(plumText); gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(12)) })
+            addView(errorText)
+            addView(pill("Try again", R.drawable.btn_pink) { reloadPage() })
+            addView(pill("Wallpaper settings", R.drawable.btn_glass) { nav.openWallpaper() })
+        }
+        root.addView(errorView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        setContentView(root)
+        WindowCompat.getInsetsController(window, root).apply { isAppearanceLightStatusBars = !night; isAppearanceLightNavigationBars = !night }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            v.setPadding(b.left, b.top, b.right, b.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+
+        WebViewManager(this, webView, this).configure()
+        WebAppBridge(onOpenWallpaper = { runOnUiThread { nav.openWallpaper() } }, onSaveImage = { name, bytes -> runOnUiThread { savePng(name, bytes) } })
+            .install(webView, "https://" + BuildConfig.WEB_HOST)
+
+        if (savedInstanceState != null) webView.restoreState(savedInstanceState) else loadHome()
     }
+
+    private fun loadHome() { showingError = false; errorView.visibility = android.view.View.GONE; webView.loadUrl(BuildConfig.WEB_APP_URL) }
+    private fun reloadPage() { errorView.visibility = android.view.View.GONE; if (webView.url.isNullOrEmpty()) loadHome() else webView.reload() }
+
+    // ---- WebViewManager.Host ----
+    override fun onProgress(percent: Int) {
+        progress.progress = percent
+        progress.visibility = if (percent in 1..99) android.view.View.VISIBLE else android.view.View.GONE
+    }
+    override fun onPageError(message: String) { showingError = true; errorText.text = message; errorView.visibility = android.view.View.VISIBLE }
+    override fun onPageOk() { showingError = false; errorView.visibility = android.view.View.GONE }
+
+    override fun chooseFiles(callback: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean {
+        fileCallback?.onReceiveValue(null)
+        fileCallback = callback
+        return try { startActivityForResult(params.createIntent(), REQ_FILE); true }
+        catch (e: Exception) { fileCallback = null; callback.onReceiveValue(null); false }
+    }
+
+    private fun savePng(name: String, bytes: ByteArray) {
+        pendingSave = name to bytes
+        try {
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/png").putExtra(Intent.EXTRA_TITLE, name), REQ_SAVE)
+        } catch (e: Exception) { pendingSave = null; Toast.makeText(this, "Could not open the save dialog.", Toast.LENGTH_SHORT).show() }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when (requestCode) {
+            REQ_FILE -> { fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data)); fileCallback = null }
+            REQ_SAVE -> {
+                val save = pendingSave; pendingSave = null
+                val uri = data?.data
+                if (resultCode == RESULT_OK && uri != null && save != null) {
+                    val ok = try { contentResolver.openOutputStream(uri)?.use { it.write(save.second) } != null } catch (e: Exception) { false }
+                    Toast.makeText(this, if (ok) "Saved." else "Could not save the file.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // Back goes through the website's own history first; only then leaves the app.
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (errorView.visibility == android.view.View.VISIBLE && webView.canGoBack()) { errorView.visibility = android.view.View.GONE; webView.goBack() }
+        else if (webView.canGoBack()) webView.goBack()
+        else super.onBackPressed()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); webView.saveState(outState) }
 
     override fun onStart() {
         super.onStart()
-        SyncHub.acquire(this) // keep the sync running while this screen is visible so status is live
-        ticker = scope.launch { while (isActive) { render(); delay(1000) } }
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { runOnUiThread { if (showingError) reloadPage() } } // reconnect: retry automatically
+        }
+        netCallback = cb
+        try { cm.registerDefaultNetworkCallback(cb) } catch (_: Exception) {}
     }
 
     override fun onStop() {
-        ticker?.cancel()
-        SyncHub.release()
+        netCallback?.let { try { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(it) } catch (_: Exception) {} }
+        netCallback = null
         super.onStop()
     }
 
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onResume() { super.onResume(); webView.onResume() }
+    override fun onPause() { webView.onPause(); super.onPause() }
+    override fun onDestroy() { (webView.parent as? ViewGroup)?.removeView(webView); webView.destroy(); super.onDestroy() }
 
-    // ---------- UI building blocks ----------
-    private fun title(t: String) = TextView(this).apply { text = t; textSize = 26f; setTypeface(typeface, Typeface.BOLD); setPadding(0, 0, 0, dp(8)) }
-    private fun body(t: String, size: Float = 15f) = TextView(this).apply { text = t; textSize = size; setPadding(0, dp(6), 0, dp(6)) }
-    private fun field(hint: String, type: Int = InputType.TYPE_CLASS_TEXT, value: String = "") = EditText(this).apply { this.hint = hint; inputType = type; setText(value); setSingleLine() }
-    private fun button(t: String, onClick: () -> Unit) = Button(this).apply { text = t; setOnClickListener { onClick() } }
-
-    private fun humanStatus(): String = when (SyncHub.status) {
-        SyncHub.Status.SIGNED_OUT -> "Not signed in."
-        SyncHub.Status.STARTING -> "Connecting…"
-        SyncHub.Status.WAITING_APPROVAL -> "Waiting for approval. Open Our Space on your other device and approve “Android live wallpaper” when the banner appears. The code on both screens must match."
-        SyncHub.Status.NO_COUPLE -> "Your couple room isn’t active yet. Finish setting it up in Our Space."
-        SyncHub.Status.LIVE -> "Connected. Your partner’s drawing will appear live on this phone’s wallpaper."
-        SyncHub.Status.OFFLINE -> "Offline. Retrying…"
-    }
-
-    private fun render() {
-        val store = SyncHub.store
-        val key = if (!store.hasSession()) "login" else "main"
-        if (key != shownKey) { shownKey = key; if (key == "login") buildLogin() else buildMain() }
-        if (key == "main") {
-            statusView?.text = humanStatus()
-            val waiting = SyncHub.status == SyncHub.Status.WAITING_APPROVAL
-            codeView?.visibility = if (waiting) View.VISIBLE else View.GONE
-            if (waiting) store.devicePub?.let { codeView?.text = Crypto.safetyNumber(listOf(it)) }
-        }
-    }
-
-    private fun buildLogin() {
-        root.removeAllViews()
-        val store = SyncHub.store
-        root.addView(title("Our Space Wallpaper"))
-        root.addView(body("Sign in with your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything."))
-        val url = field("Server address", InputType.TYPE_TEXT_VARIATION_URI, store.baseUrl.ifEmpty { "http://10.0.2.2:4000" })
-        val id = field("Username or email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
-        val pw = field("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        val err = body("").apply { setTextColor(0xFFC62828.toInt()) }
-        val go = button("Sign in") {}
-        go.setOnClickListener {
-            go.isEnabled = false; err.text = ""
-            scope.launch {
-                try { signIn(url.text.toString(), id.text.toString(), pw.text.toString()) }
-                catch (e: ApiException) { err.text = if (e.status == 401) "Incorrect username or password." else "Server said: ${e.code}" }
-                catch (e: Exception) { err.text = "Could not reach the server. Check the address and your connection." }
-                go.isEnabled = true
-            }
-        }
-        listOf(url, id, pw, err, go).forEach { root.addView(it) }
-    }
-
-    private suspend fun signIn(url: String, identifier: String, password: String) {
-        val store = SyncHub.store
-        store.baseUrl = url.trim()
-        val d = SyncHub.api.login(identifier.trim(), password)
-        val newId = d.getJSONObject("user").getString("id")
-        if (store.userId != null && store.userId != newId) store.clearDevice() // a different person: never reuse the old identity
-        store.userId = newId
-        ensureDevice()
-        SyncHub.restart()
-        shownKey = "" // force the screen to rebuild
-    }
-
-    private suspend fun ensureDevice() {
-        val store = SyncHub.store
-        if (store.deviceId != null) return
-        val (pk, sk) = Crypto.newDeviceKeys()
-        val label = "Android live wallpaper (${Build.MODEL})".take(60)
-        val res = SyncHub.api.post("/devices", JSONObject().put("publicKey", Crypto.b64(pk)).put("label", label))
-        store.devicePub = Crypto.b64(pk)
-        store.deviceSecret = Crypto.b64(sk)
-        store.deviceId = res.getJSONObject("device").getString("id") // set last: hasSession() needs all of it
-    }
-
-    private fun buildMain() {
-        root.removeAllViews()
-        val store = SyncHub.store
-        root.addView(title("Our Space Wallpaper"))
-        statusView = body("").also { root.addView(it) }
-        codeView = TextView(this).apply {
-            textSize = 24f; gravity = Gravity.CENTER; typeface = Typeface.MONOSPACE
-            setPadding(0, dp(12), 0, dp(12)); visibility = View.GONE
-        }.also { root.addView(it) }
-        root.addView(button("Set as live wallpaper") { chooseWallpaper() })
-        val sw = Switch(this).apply {
-            text = "Hide the drawing while my phone is locked"
-            isChecked = store.hideWhenLocked
-            setPadding(0, dp(16), 0, dp(8))
-            setOnCheckedChangeListener { _, on -> store.hideWhenLocked = on }
-        }
-        root.addView(sw)
-        root.addView(body("With this on (recommended), the lock screen shows a plain heart instead of your partner’s drawing, so nobody nearby can see it. It is shown again once you unlock.", 13f))
-        root.addView(button("Sign out and forget this phone") { signOut() })
-        root.addView(body("Also remove “Android live wallpaper” from Security → Devices in Our Space, so your partner’s devices stop sharing new keys with it.", 13f))
-    }
-
-    private fun chooseWallpaper() {
-        val component = ComponentName(this, LoveWallpaperService::class.java)
-        try {
-            startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component))
-        } catch (e: Exception) {
-            startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) // some launchers only offer the chooser
-        }
-    }
-
-    private fun signOut() {
-        scope.launch {
-            SyncHub.store.clear()
-            SyncHub.api.forget()
-            SyncHub.restart()
-            shownKey = ""
-        }
-    }
+    private companion object { const val REQ_FILE = 1001; const val REQ_SAVE = 1002 }
 }
