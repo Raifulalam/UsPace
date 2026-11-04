@@ -48,6 +48,18 @@ export default function Space() {
   );
 
   const settings = showSettings ? <Settings hasPartner={couple?.status === 'active'} onClose={() => setShowSettings(false)} /> : null;
+  if (couple?.status === 'suspended') {
+    return (
+      <>
+        {header(couple.name)}
+        <main className="mx-auto max-w-md px-5 py-16 text-center">
+          <h2 className="text-xl font-semibold">This room is paused</h2>
+          <p className="mt-2 text-muted">Our safety team has paused this room while they look into a report. Nothing has been deleted. You can still use Settings, and this page updates by itself when the room is reopened.</p>
+        </main>
+        {settings}
+      </>
+    );
+  }
   if (!couple || couple.status !== 'active') return <>{header(couple?.name ?? 'Our Space')}<Onboarding couple={couple} onChange={loadCouple} />{settings}</>;
   return <><ActiveSpace key={couple.id} user={user} couple={couple} header={header} />{settings}</>;
 }
@@ -150,9 +162,7 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
             <h2 className="text-lg font-semibold">This device needs approval</h2>
             <p className="text-sm text-muted">{waitingHint}</p>
             <p className="rounded-2xl bg-bg/70 p-3 font-mono text-lg tracking-wider">{x.deviceCode}</p>
-            <p className="text-xs text-muted">
-  Device ID: {x.device.id.slice(0, 12)}
-</p>
+            <p className="text-xs text-muted">{x.device.label}</p>
           </section>
           <section className="card grid gap-2">
             <h3 className="font-medium">No other device? Use your recovery key</h3>

@@ -6,6 +6,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { setIo, emitToCouple, emitToCanvas } = require('../services/realtime');
 const canvases = require('../services/canvasService');
 const { opSchema, liveSchema, joinSchema } = require('../schemas/canvas');
+const settings = require('../services/settingsService');
 const messages = require('../services/messageService');
 const { sendSchema } = require('../schemas/messages');
 
@@ -48,6 +49,7 @@ function attachSockets(httpServer) {
 
   io.use(async (socket, next) => {
     try {
+      if ((await settings.get()).maintenance.enabled) return next(new Error('maintenance'));
       socket.data.user = await authenticateToken(socket.handshake.auth?.token);
       next();
     } catch {
@@ -92,6 +94,7 @@ function attachSockets(httpServer) {
     socket.on('message:send', async (payload, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       if (!allow(socket, 'msg', 30, 10000)) return reply({ ok: false, error: 'RATE_LIMITED' });
+      if ((await settings.get()).features.chat === false) return reply({ ok: false, error: 'FEATURE_DISABLED' });
       const parsed = sendSchema.safeParse(payload);
       if (!parsed.success) return reply({ ok: false, error: 'VALIDATION_ERROR' });
       try {
@@ -112,6 +115,7 @@ function attachSockets(httpServer) {
       const p = joinSchema.safeParse(payload);
       if (!p.success) return reply({ ok: false, error: 'VALIDATION_ERROR' });
       try {
+        if ((await settings.get()).features.canvas === false) return reply({ ok: false, error: 'FEATURE_DISABLED' });
         if (!(await ensureMember(socket))) return reply({ ok: false, error: 'NO_ACTIVE_COUPLE' });
         const { canvas } = await canvases.getCanvasForUser(socket.data.user, p.data.canvasId);
         socket.join(`canvas:${canvas.id}`);
@@ -135,6 +139,7 @@ function attachSockets(httpServer) {
       if (!p.success) return reply({ ok: false, error: 'VALIDATION_ERROR' });
       if (!socket.data.canvases?.has(p.data.canvasId)) return reply({ ok: false, error: 'NOT_JOINED' });
       try {
+        if ((await settings.get()).features.canvas === false) return reply({ ok: false, error: 'FEATURE_DISABLED' });
         if (!(await ensureMember(socket))) return reply({ ok: false, error: 'NO_ACTIVE_COUPLE' });
         const { op, created, canvasId } = await canvases.appendOp(socket.data.user, p.data);
         if (created) emitToCanvas(canvasId, 'canvas:op', { canvasId, op });

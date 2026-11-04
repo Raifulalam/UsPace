@@ -4,7 +4,7 @@ const Block = require('../models/Block');
 const Report = require('../models/Report');
 const AppError = require('../utils/AppError');
 
-const MAX_REPORTS_PER_DAY = 5;
+const settings = require('./settingsService');
 
 // Blocking never reveals whether the username exists: it always looks like it worked.
 async function blockUser(user, username) {
@@ -24,7 +24,7 @@ async function isBlockedEitherWay(a, b) {
 }
 
 async function createReport(user, { category, target, username, details, evidence }) {
-  if ((await Report.countDocuments({ reporterId: user._id, createdAt: { $gt: new Date(Date.now() - 86400000) } })) >= MAX_REPORTS_PER_DAY) {
+  if ((await Report.countDocuments({ reporterId: user._id, createdAt: { $gt: new Date(Date.now() - 86400000) } })) >= (await settings.get()).limits.reportsPerDay) {
     throw new AppError(429, 'TOO_MANY_REPORTS', 'You have sent several reports today. Our team will review them.');
   }
   let targetUser = null;

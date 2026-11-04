@@ -5,7 +5,7 @@ const Invitation = require('../models/Invitation');
 const AppError = require('../utils/AppError');
 const { generateInviteCode, hashInviteCode } = require('../utils/crypto');
 const safety = require('./safetyService');
-const MAX_INVITES_PER_DAY = 10;
+const settings = require('./settingsService');
 
 const MAX_OPEN_INVITES = 3;
 const now = () => new Date();
@@ -58,7 +58,7 @@ async function createInvitation(user) {
     { coupleId: couple._id, status: { $in: ['pending', 'accepted'] }, expiresAt: { $lt: now() } },
     { $set: { status: 'expired', resolvedAt: now() } }
   );
-  if ((await Invitation.countDocuments({ inviterId: user._id, createdAt: { $gt: new Date(Date.now() - 86400000) } })) >= MAX_INVITES_PER_DAY) {
+  if ((await Invitation.countDocuments({ inviterId: user._id, createdAt: { $gt: new Date(Date.now() - 86400000) } })) >= (await settings.get()).limits.invitesPerDay) {
     throw new AppError(429, 'TOO_MANY_INVITES', 'You have created many invitations today. Try again tomorrow.');
   }
   const open = await Invitation.countDocuments({ coupleId: couple._id, status: { $in: ['pending', 'accepted'] } });

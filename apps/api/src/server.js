@@ -18,6 +18,10 @@ require('./models/Memory');
 require('./models/Album');
 require('./models/Block');
 require('./models/Report');
+require('./models/AdminAccount');
+require('./models/AdminSession');
+require('./models/AdminAuditLog');
+require('./models/ApplicationSettings');
 const { createApp } = require('./app');
 const { attachSockets } = require('./sockets');
 

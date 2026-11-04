@@ -11,5 +11,6 @@ module.exports = {
   authLimiter: make(15 * 60 * 1000, 30, 'RATE_LIMITED'),
   // Invitation codes are guessable in principle; keep guess attempts very expensive.
   inviteAcceptLimiter: make(60 * 60 * 1000, 10, 'RATE_LIMITED'),
+  adminAuthLimiter: make(15 * 60 * 1000, 20, 'RATE_LIMITED'),
   generalLimiter: make(60 * 1000, 300, 'RATE_LIMITED'),
 };

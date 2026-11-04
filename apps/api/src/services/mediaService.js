@@ -8,6 +8,7 @@ const Memory = require('../models/Memory');
 const AppError = require('../utils/AppError');
 const { getStorage } = require('../storage');
 const { requireActiveCouple } = require('./access');
+const settings = require('./settingsService');
 
 const MAX_PENDING = 20;
 const PENDING_TTL_MS = 60 * 60 * 1000; // an unfinished upload is released after 1 hour
@@ -15,7 +16,6 @@ const ORPHAN_TTL_MS = 24 * 60 * 60 * 1000; // an uploaded file nothing reference
 const MIN_SIZE = encryptedSize(0);
 
 const view = (a) => ({ id: a.id, kind: a.kind, sizeBytes: a.sizeBytes, status: a.status });
-const quotaOf = (couple) => couple.storageQuotaBytes ?? config.FREE_STORAGE_BYTES;
 
 /** Reserve space for one encrypted file. The exact ciphertext size is declared up front and enforced on upload. */
 async function createAsset(user, { kind, sizeBytes }) {
@@ -24,9 +24,10 @@ async function createAsset(user, { kind, sizeBytes }) {
   if ((await MediaAsset.countDocuments({ coupleId: couple._id, status: { $in: ['pending', 'uploading'] } })) >= MAX_PENDING) {
     throw new AppError(429, 'TOO_MANY_UPLOADS', 'Too many uploads in progress');
   }
+  const freeBytes = (await settings.get()).limits.freeStorageBytes;
   // Atomic: reserve only if it still fits. Two simultaneous uploads cannot both squeeze past the quota.
   const reserved = await Couple.findOneAndUpdate(
-    { _id: couple._id, $expr: { $lte: [{ $add: ['$storageUsed', sizeBytes] }, { $ifNull: ['$storageQuotaBytes', config.FREE_STORAGE_BYTES] }] } },
+    { _id: couple._id, $expr: { $lte: [{ $add: ['$storageUsed', sizeBytes] }, { $ifNull: ['$storageQuotaBytes', freeBytes] }] } },
     { $inc: { storageUsed: sizeBytes } }
   );
   if (!reserved) throw new AppError(413, 'QUOTA_EXCEEDED', 'Your shared storage is full');
@@ -117,7 +118,7 @@ async function deleteOwn(user, id) {
 
 async function usage(user) {
   const couple = await requireActiveCouple(user);
-  return { used: Math.max(0, couple.storageUsed || 0), quota: quotaOf(couple) };
+  return { used: Math.max(0, couple.storageUsed || 0), quota: couple.storageQuotaBytes ?? (await settings.get()).limits.freeStorageBytes };
 }
 
 /** Housekeeping: abandoned uploads and files nothing references. Run on a timer and from tests. */

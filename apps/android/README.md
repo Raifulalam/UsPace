@@ -27,6 +27,10 @@ decrypts drawing operations **on the phone**, and draws them. The server never s
 6. Tap **Set as live wallpaper** and confirm in Android's picker.
 7. Open the Live Canvas on the web in another window and draw; the wallpaper updates.
 
+The Android app hands the native login session to the WebView through a `SameSite=None`
+cookie because the deployed web and API hosts are on different sites. Third-party cookies
+must remain enabled for this single-sign-on handoff.
+
 Unit tests (JVM): `./gradlew test`. They run the same shared cases as `packages/canvas-core` (JavaScript) so the two ports cannot drift.
 
 ## Status: NOT yet compiled or run

@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-slate-100 text-slate-900 antialiased; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+
+@layer components {
+  .panel { @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm; }
+  .field { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none; }
+  .btn { @apply inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-indigo-600 text-white hover:bg-indigo-700; }
+  .btn-ghost { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
+  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+  .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500; }
+  .td { @apply px-3 py-2 text-sm; }
+}

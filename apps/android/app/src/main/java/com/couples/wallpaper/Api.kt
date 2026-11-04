@@ -39,6 +39,53 @@ class Api(private val store: Store) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
+    // Used only for the one-time web-session exchange; it carries no cookies of its own.
+    private val bare = client.newBuilder().cookieJar(CookieJar.NO_COOKIES).build()
+
+    class WebLogin(val refreshToken: String, val maxAgeSeconds: Long)
+
+    private fun failure(resp: okhttp3.Response, text: String): ApiException {
+        val code = runCatching { JSONObject(text).getJSONObject("error").getString("code") }.getOrDefault("HTTP_${resp.code}")
+        return ApiException(resp.code, code)
+    }
+
+    /**
+     * A second, independent login (its own token family) whose refresh cookie is handed to the website inside the app, so the user
+     * types the password once. Uses a client with no cookie jar so it never touches this app's own session.
+     */
+    suspend fun loginForWeb(identifier: String, password: String): WebLogin = withContext(Dispatchers.IO) {
+        val url = base() + "/api/v1/auth/login"
+        require(url.startsWith("https://") || BuildConfig.DEBUG) { "https required" }
+        val req = Request.Builder().url(url).post(JSONObject().put("identifier", identifier).put("password", password).toString().toRequestBody(json)).build()
+        bare.newCall(req).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw failure(resp, text)
+            val c = Cookie.parseAll(resp.request.url, resp.headers).firstOrNull { it.name == "rt" } ?: throw ApiException(502, "NO_SESSION_COOKIE")
+            WebLogin(c.value, ((c.expiresAt - System.currentTimeMillis()) / 1000).coerceAtLeast(60))
+        }
+    }
+
+    /** Registers an account. The returned session becomes this app's session (the refresh cookie is saved by the cookie jar). */
+    suspend fun register(body: JSONObject): JSONObject {
+        val d = raw("POST", "/auth/register", body, false)
+        accessToken = d.getString("accessToken")
+        return d
+    }
+
+    /** Ends this app's session on the server (best effort). */
+    suspend fun logout() { try { raw("POST", "/auth/logout", null, false) } catch (_: Exception) {} }
+
+    /** Ends the website's session on the server, using its refresh token. Best effort. */
+    suspend fun logoutWeb(webRefreshToken: String) = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(base() + "/api/v1/auth/logout").header("Cookie", "rt=$webRefreshToken").post("{}".toRequestBody(json)).build()
+            bare.newCall(req).execute().close()
+        } catch (_: Exception) {}
+    }
+
+    /** Drops this app's session tokens (memory and storage). Device keys are untouched. */
+    suspend fun dropSession() = refreshLock.withLock { store.refreshCookie = null; accessToken = null }
+
     private fun base() = store.baseUrl.trim().trimEnd('/')
 
     fun forget() { accessToken = null }

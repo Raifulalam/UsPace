@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema(
     resetRequestedAt: { type: Date, select: false },
     deletionRequestedAt: Date,
     deletionScheduledAt: Date,
+    suspension: { reason: String, at: Date, by: String },
     tokenVersion: { type: Number, default: 0 }, // bump to invalidate all access tokens
     failedLoginCount: { type: Number, default: 0 },
     lockUntil: Date,
