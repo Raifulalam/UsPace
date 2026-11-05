@@ -140,7 +140,7 @@ export async function prepareFile(file: Blob, o: PrepareOptions = {}): Promise<D
   let bytes = raw, mime = sniffed;
   let meta: { w?: number; h?: number; dur?: number } = {};
   let thumb: { bytes: Uint8Array; w: number; h: number } | undefined;
-  if (kind === 'image') { const r = await processImage(file, sniffed, raw); bytes = r.bytes; mime = r.mime; meta = { w: r.w, h: r.h }; thumb = r.thumb; }
+  if (kind === 'image') { const r = await processImage(file, sniffed, raw); bytes = new Uint8Array(r.bytes); mime = r.mime; meta = { w: r.w, h: r.h }; thumb = r.thumb; }
   else if (kind === 'video') { const r = await probeVideo(file); meta = { w: r.w, h: r.h, dur: r.dur }; thumb = r.thumb; }
   else meta = { dur: o.durOverride ?? (await probeAudio(file)) };
   if (bytes.length > LIMITS[kind]) throw new MediaError('TOO_LARGE', 'That image is too large.');
