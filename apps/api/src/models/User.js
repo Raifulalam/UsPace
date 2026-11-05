@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     deletionRequestedAt: Date,
     deletionScheduledAt: Date,
     suspension: { reason: String, at: Date, by: String },
+    readReceipts: { type: Boolean, default: true }, // share "seen" with your partner (and see theirs)
     tokenVersion: { type: Number, default: 0 }, // bump to invalidate all access tokens
     failedLoginCount: { type: Number, default: 0 },
     lockUntil: Date,
@@ -38,6 +39,7 @@ function publicUser(u) {
     role: u.role,
     coupleId: u.coupleId ? String(u.coupleId) : null,
     emailVerified: Boolean(u.emailVerifiedAt),
+    readReceipts: u.readReceipts !== false,
   };
 }
 

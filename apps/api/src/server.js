@@ -22,6 +22,8 @@ require('./models/AdminAccount');
 require('./models/AdminSession');
 require('./models/AdminAuditLog');
 require('./models/ApplicationSettings');
+require('./models/MessageReaction');
+require('./models/ReadState');
 const { createApp } = require('./app');
 const { attachSockets } = require('./sockets');
 

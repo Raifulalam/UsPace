@@ -13,9 +13,14 @@ const sendSchema = z.object({
   mediaIds: z.array(zObjectId).max(4).optional(), // files referenced by this message (plaintext so the server can refcount them)
 }).strict();
 
+const encryptedPart = { keyVersion: z.number().int().min(1), nonce: zB64Bytes(24) };
+const editSchema = z.object({ ...encryptedPart, ciphertext: zB64Len(24, 22000) }).strict();
+const reactionSchema = z.object({ ...encryptedPart, ciphertext: zB64Len(24, 2000) }).strict();
+const readSchema = z.object({ upTo: zObjectId }).strict();
+
 const listSchema = z.object({
   before: zObjectId.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 }).strict();
 
-module.exports = { sendSchema, listSchema };
+module.exports = { sendSchema, listSchema, editSchema, reactionSchema, readSchema };

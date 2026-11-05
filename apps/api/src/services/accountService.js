@@ -68,6 +68,15 @@ async function changePassword(user, currentPassword, newPassword, rawRefresh) {
   return signAccessToken(updated);
 }
 
+// ---------- profile ----------
+async function updateProfile(user, patch) {
+  const set = {};
+  if (patch.displayName !== undefined) set.displayName = patch.displayName;
+  if (patch.readReceipts !== undefined) set.readReceipts = patch.readReceipts;
+  const updated = await User.findByIdAndUpdate(user._id, { $set: set }, { new: true });
+  return updated;
+}
+
 // ---------- sessions ----------
 async function listSessions(user, rawRefresh) {
   const mine = rawRefresh ? sha256(rawRefresh) : null;
@@ -130,6 +139,6 @@ async function exportData(user, rawRefresh) {
 }
 
 module.exports = {
-  requestPasswordReset, confirmPasswordReset, changePassword, listSessions, revokeSession, logoutEverywhere,
+  updateProfile, requestPasswordReset, confirmPasswordReset, changePassword, listSessions, revokeSession, logoutEverywhere,
   requestDeletion, cancelDeletion, exportData, currentFamily,
 };

@@ -10,9 +10,12 @@ const account = require('../services/accountService');
 const COOKIE = 'rt';
 const passwordChange = z.object({ currentPassword: z.string().min(1).max(200), newPassword: passwordSchema }).strict();
 const deletion = z.object({ password: z.string().min(1).max(200) }).strict();
+const profileSchema = z.object({ displayName: z.string().trim().min(1).max(50).optional(), readReceipts: z.boolean().optional() }).strict().refine((o) => Object.keys(o).length > 0, 'Nothing to update');
+const { publicUser } = require('../models/User');
 const sessionParam = z.object({ id: z.string().uuid() }).strict();
 router.use(authenticate);
 
+router.patch('/me', validate(profileSchema), asyncHandler(async (req, res) => res.json({ data: { user: publicUser(await account.updateProfile(req.user, req.body)) } })));
 router.post('/me/password', validate(passwordChange), asyncHandler(async (req, res) => {
   const accessToken = await account.changePassword(req.user, req.body.currentPassword, req.body.newPassword, req.cookies?.[COOKIE]);
   res.json({ data: { accessToken } });

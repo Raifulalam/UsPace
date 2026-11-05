@@ -2,81 +2,24 @@ const AdminAuditLog = require('../models/AdminAuditLog');
 const { GENESIS, entryHash, verifyChain } = require('../admin/auditChain');
 
 /** Appends one tamper-evident entry. Retries if two admins write at the same instant (the unique `seq` serialises them). */
-
-async function record({
-  admin = null,
-  email = null,
-  action,
-  targetType = null,
-  targetId = null,
-  details = {},
-  ip = null,
-}) {
-  // Validate required action
-  if (!action || typeof action !== "string" || !action.trim()) {
-    throw new Error("Audit log action is required");
-  }
-
-  const cleanDetails = JSON.parse(
-    JSON.stringify(details ?? {})
-  );
-
+async function record({ admin = null, email = null, action, targetType = null, targetId = null, details = {}, ip = null }) {
+  const cleanDetails = JSON.parse(JSON.stringify(details ?? {}));
   for (let attempt = 0; attempt < 8; attempt++) {
-    const last = await AdminAuditLog.findOne()
-      .sort({ seq: -1 })
-      .lean();
-
+    const last = await AdminAuditLog.findOne().sort({ seq: -1 }).lean();
     const createdAt = new Date();
-
     const fields = {
-      seq: (last?.seq ?? 0) + 1,
-
-      adminId: admin?._id
-        ? String(admin._id)
-        : null,
-
-      adminEmail: admin
-        ? admin.email
-        : email,
-
-      action: action.trim(),
-
-      targetType,
-
-      targetId:
-        targetId == null
-          ? null
-          : String(targetId),
-
-      details: cleanDetails,
-
-      ip,
-
-      at: createdAt.toISOString(),
+      seq: (last?.seq ?? 0) + 1, adminId: admin ? String(admin._id) : null, // a plain string: database ids flatten to {} when hashed adminEmail: admin ? admin.email : email, action,
+      targetType, targetId: targetId == null ? null : String(targetId), details: cleanDetails, ip, at: createdAt.toISOString(),
     };
-
     const prevHash = last?.hash ?? GENESIS;
-
-    const hash = entryHash(prevHash, fields);
-
     try {
-      return await AdminAuditLog.create({
-        ...fields,
-        createdAt,
-        prevHash,
-        hash,
-      });
-    } catch (error) {
-      // Retry only if another request took this sequence number
-      if (error.code !== 11000) {
-        throw error;
-      }
+      return await AdminAuditLog.create({ ...fields, createdAt, prevHash, hash: entryHash(prevHash, fields) });
+    } catch (e) {
+      if (e.code !== 11000) throw e; // someone else took this seq: read the new tail and try again
     }
   }
-
-  throw new Error("Could not append to the audit log");
+  throw new Error('Could not append to the audit log');
 }
-
 
 const view = (e) => ({ seq: e.seq, at: e.createdAt, admin: e.adminEmail, action: e.action, targetType: e.targetType, targetId: e.targetId, details: e.details, ip: e.ip });
 

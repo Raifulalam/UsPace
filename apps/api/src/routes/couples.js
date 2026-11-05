@@ -1,12 +1,13 @@
 const router = require('express').Router();
 const { z } = require('zod');
 const validate = require('../middleware/validate');
+const { ALLOWED_TTL } = require('@couples/space-core');
 const { authenticate } = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const svc = require('../services/coupleService');
 
 const view = (c) => ({
-  id: c.id, name: c.name, theme: c.theme, status: c.status, keyVersion: c.keyVersion, anniversaryDate: c.anniversaryDate || null,
+  id: c.id, name: c.name, theme: c.theme, status: c.status, keyVersion: c.keyVersion, messageTtlSec: c.messageTtlSec || 0, anniversaryDate: c.anniversaryDate || null,
   members: c.members.map((m) => (m.username ? { id: m.id, username: m.username, displayName: m.displayName || m.username } : { id: String(m) })),
 });
 const invView = (i) => ({
@@ -18,6 +19,7 @@ const createSchema = z.object({ name: z.string().trim().min(1).max(60).default('
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   theme: z.enum(['rose', 'lavender', 'midnight']).optional(),
+  messageTtlSec: z.number().int().refine((v) => ALLOWED_TTL.includes(v), 'Choose off, 1 hour, 24 hours, 7 days or 30 days').optional(),
   anniversaryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform((s) => new Date(`${s}T00:00:00Z`)).optional(),
 }).strict().refine((o) => Object.keys(o).length > 0, 'Nothing to update');
 

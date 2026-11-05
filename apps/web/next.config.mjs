@@ -14,7 +14,7 @@ const csp = [
 
 export default {
   reactStrictMode: true,
-  transpilePackages: ['@couples/crypto', '@couples/canvas-core', '@couples/media-core'],
+  transpilePackages: ['@couples/crypto', '@couples/canvas-core', '@couples/media-core', '@couples/space-core'],
   webpack(config, { isServer }) {
     if (!isServer) config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false, crypto: false };
     return config;

@@ -74,7 +74,7 @@ class LoveWallpaperService : WallpaperService() {
                 if (hide || SyncHub.status != SyncHub.Status.LIVE) {
                     renderer.drawPlaceholder(c, width, height, SyncHub.scene.bg.color)
                 } else {
-                    renderer.drawScene(c, width, height, SyncHub.scene, SyncHub.live.values, SyncHub.partnerName)
+                    renderer.drawScene(c, width, height, SyncHub.scene, SyncHub.live.values)
                 }
             } catch (_: Exception) {
                 // surface may disappear mid-draw; the next frame will retry

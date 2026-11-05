@@ -13,6 +13,9 @@ const schema = new mongoose.Schema(
     nonce: String,
     ciphertext: String,
     mediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MediaAsset' }], // plaintext on purpose: lets the server refcount files
+    editedAt: Date,
+    pinnedAt: Date,
+    pinnedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     deletedAt: Date,
     expiresAt: { type: Date, index: { expireAfterSeconds: 0 } }, // disappearing messages
   },

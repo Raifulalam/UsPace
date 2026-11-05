@@ -1,5 +1,6 @@
 import * as cc from '@couples/crypto';
 import { validateDescriptor, type Descriptor, type MemoryType } from '@couples/media-core';
+import { validateReaction, validateReplyTo, validateSticker } from '@couples/space-core';
 import { api, ApiError } from './api';
 import { loadDevice, saveDevice, loadRoomKeys, saveRoomKeys, type LocalDevice } from './keystore';
 import type { ChatMessage, Device, Kind, SyncState, WireMessage } from './types';
@@ -164,12 +165,29 @@ export class E2EE {
   }
 
   // ---------- messages ----------
-  buildMessage(senderId: string, kind: Kind, keyVersion: number, payload: unknown) {
+  /** Pass an existing clientMsgId to RE-encrypt the same message (editing): the ciphertext stays bound to the same message. */
+  buildMessage(senderId: string, kind: Kind, keyVersion: number, payload: unknown, clientMsgId: string = crypto.randomUUID()) {
     const key = this.keys.get(keyVersion);
     if (!key) throw new Error('NO_KEY');
-    const clientMsgId = crypto.randomUUID();
     const enc = cc.encryptPayload(key, payload, { coupleId: this.coupleId, senderId, clientMsgId, keyVersion, kind });
     return { clientMsgId, deviceId: this.device.id, keyVersion, kind, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+
+  // ---------- reactions ----------
+  private reactionAad(messageId: string, userId: string, keyVersion: number) {
+    return `couples-reaction-v1|${this.coupleId}|${messageId}|${userId}|${keyVersion}`;
+  }
+  buildReaction(messageId: string, userId: string, keyVersion: number, emoji: string) {
+    const key = this.keys.get(keyVersion);
+    if (!key) throw new Error('NO_KEY');
+    const enc = cc.encryptRaw(key, { emoji }, this.reactionAad(messageId, userId, keyVersion));
+    return { keyVersion, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+  /** The emoji, or null if it cannot be opened or is not on the allow-list. */
+  decryptReaction(r: { messageId: string; userId: string; keyVersion: number; nonce: string; ciphertext: string }): string | null {
+    const key = this.keys.get(r.keyVersion);
+    if (!key) return null;
+    try { return validateReaction(cc.decryptRaw(key, r, this.reactionAad(r.messageId, r.userId, r.keyVersion))); } catch { return null; }
   }
 
   // ---------- memories & albums ----------
@@ -247,7 +265,7 @@ export class E2EE {
   }
 
   decrypt(m: WireMessage): ChatMessage {
-    const base = { id: m.id, clientMsgId: m.clientMsgId, senderId: m.senderId, kind: m.kind, createdAt: m.createdAt };
+    const base = { id: m.id, clientMsgId: m.clientMsgId, senderId: m.senderId, kind: m.kind, createdAt: m.createdAt, editedAt: m.editedAt ?? null, pinned: Boolean(m.pinned) };
     if (m.deleted || !m.ciphertext || !m.nonce) return { ...base, text: null, state: 'deleted' };
     const key = this.keys.get(m.keyVersion);
     if (!key) return { ...base, text: null, state: 'locked' };
@@ -256,7 +274,9 @@ export class E2EE {
         coupleId: this.coupleId, senderId: m.senderId, clientMsgId: m.clientMsgId, keyVersion: m.keyVersion, kind: m.kind,
       });
       const media = Array.isArray(p?.media) ? (p.media as unknown[]).map(validateDescriptor).filter((d): d is Descriptor => d !== null) : [];
-      return { ...base, text: typeof p?.text === 'string' ? p.text : null, state: 'ok', ...(media.length ? { media } : {}) };
+      const replyTo = validateReplyTo(p?.replyTo);
+      const sticker = m.kind === 'sticker' ? validateSticker(p) : null; // untrusted: only allow-listed stickers
+      return { ...base, text: typeof p?.text === 'string' ? p.text : null, state: 'ok', ...(media.length ? { media } : {}), ...(replyTo ? { replyTo } : {}), ...(sticker ? { sticker } : {}) };
     } catch {
       return { ...base, text: null, state: 'tampered' };
     }

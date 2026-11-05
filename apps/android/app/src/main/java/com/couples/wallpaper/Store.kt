@@ -40,25 +40,6 @@ class Store(context: Context) {
     var deviceSecret: String?
         get() = str("deviceSecret")
         set(v) = put("deviceSecret", v)
-    var username: String?
-        get() = str("username")
-        set(v) = put("username", v)
-    var displayName: String?
-        get() = str("displayName")
-        set(v) = put("displayName", v)
-    var partnerName: String?
-        get() = str("partnerName")
-        set(v) = put("partnerName", v)
-    /** True when the website inside the app was signed in together with the app (single sign-in worked). */
-    var webLinked: Boolean
-        get() = prefs.getBoolean("webLinked", false)
-        set(v) { prefs.edit().putBoolean("webLinked", v).apply() }
-    var webRefreshToken: String?
-        get() = str("webRefreshToken")
-        set(v) = put("webRefreshToken", v)
-    var webRefreshExpiresAt: Long
-        get() = prefs.getLong("webRefreshExpiresAt", 0L)
-        set(v) { prefs.edit().putLong("webRefreshExpiresAt", v).apply() }
     /** Privacy default: show a neutral placeholder instead of the drawing while the phone is locked. */
     var hideWhenLocked: Boolean
         get() = prefs.getBoolean("hideWhenLocked", true)

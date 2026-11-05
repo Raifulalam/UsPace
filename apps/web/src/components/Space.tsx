@@ -1,14 +1,16 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Brush, Heart, Images, KeyRound, LogOut, MessageCircle, Settings as SettingsIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Brush, Heart, Home as HomeIcon, Images, KeyRound, LogOut, MessageCircle, Monitor, Moon, Settings as SettingsIcon, ShieldAlert, ShieldCheck, Sun } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/session';
+import { useAppearance } from '@/lib/appearance';
 import { E2EE } from '@/lib/e2ee';
 import type { Couple, Device, SyncState, User } from '@/lib/types';
 import Onboarding from './Onboarding';
 import Settings from './Settings';
 import Chat from './Chat';
+import Home from './Home';
 import LoveCanvas from './LoveCanvas';
 import Memories from './Memories';
 import SecurityPanel from './SecurityPanel';
@@ -19,6 +21,7 @@ export default function Space() {
   const router = useRouter();
   const [couple, setCouple] = useState<Couple | null | undefined>(undefined);
   const [showSettings, setShowSettings] = useState(false);
+  const { mode, cycle } = useAppearance(couple?.theme);
 
   const loadCouple = useCallback(async () => {
     try { setCouple((await api<{ couple: Couple }>('/couples/me')).couple); }
@@ -43,7 +46,7 @@ export default function Space() {
   const header = (title: string, extra?: ReactNode) => (
     <header className="mx-auto flex h-[4.5rem] max-w-2xl items-center justify-between px-4">
       <h1 className="flex items-center gap-2 text-lg font-semibold"><Heart className="h-5 w-5 fill-accent text-accent" aria-hidden />{title}</h1>
-      <div className="flex items-center gap-2">{extra}<button className="btn-ghost" aria-label="Settings" onClick={() => setShowSettings(true)}><SettingsIcon className="h-4 w-4" /></button><button className="btn-ghost" aria-label="Log out" onClick={logout}><LogOut className="h-4 w-4" /></button></div>
+      <div className="flex items-center gap-2">{extra}<button className="btn-ghost" aria-label={`Appearance: ${mode === 'auto' ? 'follows your device' : mode}. Tap to change.`} onClick={cycle}>{mode === 'light' ? <Sun className="h-4 w-4" /> : mode === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}</button><button className="btn-ghost" aria-label="Settings" onClick={() => setShowSettings(true)}><SettingsIcon className="h-4 w-4" /></button><button className="btn-ghost" aria-label="Log out" onClick={logout}><LogOut className="h-4 w-4" /></button></div>
     </header>
   );
 
@@ -61,12 +64,12 @@ export default function Space() {
     );
   }
   if (!couple || couple.status !== 'active') return <>{header(couple?.name ?? 'Our Space')}<Onboarding couple={couple} onChange={loadCouple} />{settings}</>;
-  return <><ActiveSpace key={couple.id} user={user} couple={couple} header={header} />{settings}</>;
+  return <><ActiveSpace key={couple.id} user={user} couple={couple} header={header} onCoupleChanged={loadCouple} />{settings}</>;
 }
 
-type ActiveProps = { user: User; couple: Couple; header: (title: string, extra?: ReactNode) => ReactNode };
+type ActiveProps = { user: User; couple: Couple; header: (title: string, extra?: ReactNode) => ReactNode; onCoupleChanged: () => void };
 
-function ActiveSpace({ user, couple, header }: ActiveProps) {
+function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
   const ref = useRef<E2EE | null>(null);
   const syncing = useRef(false);
   const memberIds = useRef<string[]>([]);
@@ -77,7 +80,8 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
   const [rk, setRk] = useState<string | null>(null);
   const [hasBackup, setHasBackup] = useState<boolean | null>(null);
   const [showSec, setShowSec] = useState(false);
-  const [view, setView] = useState<'chat' | 'canvas' | 'memories'>('chat');
+  const [view, setView] = useState<'home' | 'chat' | 'canvas' | 'memories'>('home');
+  const [unread, setUnread] = useState(0);
   const [memoriesOpened, setMemoriesOpened] = useState(false);
   const [canvasOpened, setCanvasOpened] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -188,13 +192,17 @@ function ActiveSpace({ user, couple, header }: ActiveProps) {
               <button className="btn-ghost" disabled={busy} onClick={() => guarded(async () => { setRk(await x.createRecovery()); setHasBackup(true); })}>Create recovery key</button>
             </div>
           )}
-          <nav className="mx-auto mb-2 flex max-w-2xl gap-2 px-3" aria-label="Sections">
-            <button className={`btn-ghost flex-1 ${view === 'chat' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'chat' ? 'page' : undefined} onClick={() => setView('chat')}><MessageCircle className="h-4 w-4" />Chat</button>
-            <button className={`btn-ghost flex-1 ${view === 'canvas' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'canvas' ? 'page' : undefined} onClick={() => { setView('canvas'); setCanvasOpened(true); }}><Brush className="h-4 w-4" />Live Canvas</button>
-            <button className={`btn-ghost flex-1 ${view === 'memories' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'memories' ? 'page' : undefined} onClick={() => { setView('memories'); setMemoriesOpened(true); }}><Images className="h-4 w-4" />Memories</button>
+          <nav className="mx-auto mb-2 flex max-w-2xl gap-1.5 px-3" aria-label="Sections">
+            <button className={`btn-ghost relative flex-1 px-2 ${view === 'home' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'home' ? 'page' : undefined} onClick={() => { setView('home'); }}><HomeIcon className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Home</span></button>
+            <button className={`btn-ghost relative flex-1 px-2 ${view === 'chat' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'chat' ? 'page' : undefined} onClick={() => { setView('chat'); }}><MessageCircle className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Chat</span>{unread > 0 && view !== 'chat' && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-xs font-semibold text-white" aria-label={`${unread} unread messages`}>{unread > 99 ? '99+' : unread}</span>}</button>
+            <button className={`btn-ghost relative flex-1 px-2 ${view === 'canvas' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'canvas' ? 'page' : undefined} onClick={() => { setView('canvas'); setCanvasOpened(true); }}><Brush className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Canvas</span></button>
+            <button className={`btn-ghost relative flex-1 px-2 ${view === 'memories' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'memories' ? 'page' : undefined} onClick={() => { setView('memories'); setMemoriesOpened(true); }}><Images className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Memories</span></button>
           </nav>
+          <div className={view === 'home' ? '' : 'hidden'}>
+            <Home user={user} couple={couple} e2ee={x} keyTick={keyTick} unread={unread} visible={view === 'home'} go={(v) => { setView(v); if (v === 'canvas') setCanvasOpened(true); if (v === 'memories') setMemoriesOpened(true); }} onCoupleChanged={onCoupleChanged} />
+          </div>
           <div className={view === 'chat' ? '' : 'hidden'}>
-            <Chat user={user} couple={couple} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} onKeysUpdated={refresh} />
+            <Chat user={user} couple={couple} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} visible={view === 'chat'} onKeysUpdated={refresh} onCoupleChanged={onCoupleChanged} onUnread={setUnread} />
           </div>
           {memoriesOpened && (
             <div className={view === 'memories' ? '' : 'hidden'}>

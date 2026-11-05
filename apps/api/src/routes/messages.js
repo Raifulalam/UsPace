@@ -4,7 +4,7 @@ const validate = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const { zObjectId } = require('../utils/b64');
-const { sendSchema, listSchema } = require('../schemas/messages');
+const { sendSchema, listSchema, editSchema, reactionSchema, readSchema } = require('../schemas/messages');
 const svc = require('../services/messageService');
 const { emitToCouple } = require('../services/realtime');
 
@@ -19,6 +19,14 @@ router.post('/', validate(sendSchema), asyncHandler(async (req, res) => {
 router.get('/', validate(listSchema, 'query'), asyncHandler(async (req, res) => {
   res.json({ data: await svc.listMessages(req.user, req.query) });
 }));
+router.get('/pinned', asyncHandler(async (req, res) => res.json({ data: { messages: await svc.listPinned(req.user) } })));
+router.get('/read-state', asyncHandler(async (req, res) => res.json({ data: await svc.readState(req.user) })));
+router.put('/read', validate(readSchema), asyncHandler(async (req, res) => res.json({ data: await svc.markRead(req.user, req.body.upTo) })));
+router.patch('/:id', validate(idParam, 'params'), validate(editSchema), asyncHandler(async (req, res) => res.json({ data: { message: await svc.editMessage(req.user, req.params.id, req.body) } })));
+router.put('/:id/pin', validate(idParam, 'params'), asyncHandler(async (req, res) => res.json({ data: { message: await svc.setPinned(req.user, req.params.id, true) } })));
+router.delete('/:id/pin', validate(idParam, 'params'), asyncHandler(async (req, res) => res.json({ data: { message: await svc.setPinned(req.user, req.params.id, false) } })));
+router.put('/:id/reaction', validate(idParam, 'params'), validate(reactionSchema), asyncHandler(async (req, res) => res.json({ data: { reaction: await svc.setReaction(req.user, req.params.id, req.body) } })));
+router.delete('/:id/reaction', validate(idParam, 'params'), asyncHandler(async (req, res) => { await svc.removeReaction(req.user, req.params.id); res.status(204).end(); }));
 router.delete('/:id', validate(idParam, 'params'), asyncHandler(async (req, res) => {
   const { message, coupleId } = await svc.deleteMessage(req.user, req.params.id);
   emitToCouple(coupleId, 'message:deleted', { id: message.id });

@@ -34,12 +34,39 @@ export default function Settings({ onClose, hasPartner }: { onClose: () => void;
         <h2 id="set-h" className="text-lg font-semibold">Settings</h2>
         <button className="btn-ghost" aria-label="Close settings" onClick={onClose}><X className="h-4 w-4" /></button>
       </div>
+      <ProfileSection />
       <PasswordSection />
       <SessionsSection onSignedOut={logout} />
       <BlocksSection />
       <ReportSection hasPartner={hasPartner} />
       <DataSection onDeleted={logout} />
     </aside>
+  );
+}
+
+function ProfileSection() {
+  const { user, updateUser } = useAuth();
+  const [name, setName] = useState(user?.displayName ?? '');
+  const [receipts, setReceipts] = useState(user?.readReceipts ?? true);
+  const a = useAction();
+  const save = (patch: { displayName?: string; readReceipts?: boolean }, done: string) => a.run(async () => {
+    const r = await api<{ user: NonNullable<typeof user> }>('/users/me', { method: 'PATCH', body: patch });
+    updateUser(r.user);
+    return done;
+  });
+  return (
+    <Section id="s-prof" title="Profile">
+      <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); void save({ displayName: name.trim() }, 'Saved. Your partner will see the new name.'); }}>
+        <label className="label" htmlFor="pf-name">Display name</label>
+        <input id="pf-name" className="input" required maxLength={50} value={name} onChange={(e) => setName(e.target.value)} />
+        <button className="btn-ghost" disabled={a.busy || !name.trim() || name.trim() === user?.displayName}>Save name</button>
+      </form>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-1" checked={receipts} disabled={a.busy} onChange={(e) => { setReceipts(e.target.checked); void save({ readReceipts: e.target.checked }, e.target.checked ? 'Read receipts are on.' : 'Read receipts are off.'); }} />
+        <span>Show “Seen” to my partner (and see theirs)<br /><span className="text-xs text-muted">If either of you turns this off, neither sees the other’s “Seen”. Unread counts still work for you.</span></span>
+      </label>
+      <Msg err={a.err} ok={a.ok} />
+    </Section>
   );
 }
 

@@ -5,6 +5,7 @@ const coupleSchema = new mongoose.Schema(
     name: { type: String, trim: true, maxlength: 60, default: 'Our Space' },
     theme: { type: String, enum: ['rose', 'lavender', 'midnight'], default: 'rose' },
     anniversaryDate: Date,
+    messageTtlSec: { type: Number, default: 0 }, // room-wide disappearing-message timer enforced by the server (0 = off)
     keyVersion: { type: Number, default: 0 }, // 0 until active; bumped when a device is revoked
     members: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

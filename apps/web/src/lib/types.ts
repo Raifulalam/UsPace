@@ -1,10 +1,12 @@
 import type { Descriptor } from '@couples/media-core';
-export type User = { id: string; username: string; email: string; displayName: string; role: string; coupleId: string | null; emailVerified: boolean };
+export type User = { id: string; username: string; email: string; displayName: string; role: string; coupleId: string | null; emailVerified: boolean; readReceipts: boolean };
 export type Member = { id: string; username?: string; displayName?: string };
-export type Couple = { id: string; name: string; theme: string; status: 'pending' | 'active' | 'closed' | 'suspended'; keyVersion: number; anniversaryDate: string | null; members: Member[] };
+export type Couple = { id: string; name: string; theme: string; status: 'pending' | 'active' | 'closed' | 'suspended'; keyVersion: number; messageTtlSec: number; anniversaryDate: string | null; members: Member[] };
 export type Device = { id: string; userId: string; publicKey: string; label: string; isMine: boolean; hasKey?: boolean; createdAt: string };
 export type Invitation = { id: string; status: string; expiresAt: string; acceptedAt: string | null; invitee: { id: string; username: string; displayName: string } | null };
 export type Kind = 'text' | 'media' | 'sticker' | 'heart';
-export type WireMessage = { mediaIds?: string[]; id: string; senderId: string; senderDeviceId: string; clientMsgId: string; keyVersion: number; kind: Kind; deleted: boolean; nonce: string | null; ciphertext: string | null; expiresAt: string | null; createdAt: string };
-export type ChatMessage = { media?: Descriptor[]; id: string | null; clientMsgId: string; senderId: string; kind: Kind; text: string | null; state: 'ok' | 'sending' | 'failed' | 'deleted' | 'locked' | 'tampered'; createdAt: string };
+export type WireMessage = { mediaIds?: string[]; editedAt?: string | null; pinned?: boolean; id: string; senderId: string; senderDeviceId: string; clientMsgId: string; keyVersion: number; kind: Kind; deleted: boolean; nonce: string | null; ciphertext: string | null; expiresAt: string | null; createdAt: string };
+export type ChatMessage = { media?: Descriptor[]; replyTo?: string; sticker?: string; editedAt?: string | null; pinned?: boolean; id: string | null; clientMsgId: string; senderId: string; kind: Kind; text: string | null; state: 'ok' | 'sending' | 'failed' | 'deleted' | 'locked' | 'tampered'; createdAt: string };
 export type SyncState = { keyVersion: number; devices: Device[]; haveCurrent: boolean; pending: Device[] };
+export type WireReaction = { messageId: string; userId: string; keyVersion: number; nonce: string; ciphertext: string };
+export type ReadState = { mine: string | null; partner: string | null; unread: number; receiptsEnabled: boolean };

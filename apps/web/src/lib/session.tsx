@@ -10,6 +10,7 @@ type Ctx = {
   login: (identifier: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (u: User) => void;
 };
 const AuthCtx = createContext<Ctx | null>(null);
 
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user, status,
     login: async (identifier, password) => finish(await api('/auth/login', { method: 'POST', body: { identifier, password } })),
     register: async (input) => finish(await api('/auth/register', { method: 'POST', body: input })),
+    updateUser: (u) => setUser(u),
     logout: async () => { await api('/auth/logout', { method: 'POST' }).catch(() => {}); setToken(null); setUser(null); setStatus('anon'); },
   }), [user, status, finish]);
 

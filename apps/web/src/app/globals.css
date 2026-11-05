@@ -7,12 +7,15 @@
   --bg: 248 244 255; --surface: 255 255 255; --ink: 27 27 58; --muted: 104 104 146;
   --accent: 219 39 119; --accent2: 124 58 237; --line: 226 220 247;
 }
+/* Dark: follows the device unless the person chose Light/Dark in the header. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: 10 14 44; --surface: 20 28 72; --ink: 241 238 255; --muted: 160 162 208;
-    --accent: 244 114 182; --accent2: 167 139 250; --line: 45 55 108;
-  }
+  :root:not([data-mode='light']) { --bg: 10 14 44; --surface: 20 28 72; --ink: 241 238 255; --muted: 160 162 208; --accent: 244 114 182; --accent2: 167 139 250; --line: 45 55 108; }
 }
+:root[data-mode='dark'] { --bg: 10 14 44; --surface: 20 28 72; --ink: 241 238 255; --muted: 160 162 208; --accent: 244 114 182; --accent2: 167 139 250; --line: 45 55 108; }
+/* Room themes (chosen on the Home screen) change the accents; Midnight is always deep navy. */
+:root[data-theme='lavender'] { --accent: 168 85 247; --accent2: 99 102 241; }
+:root[data-theme='midnight'] { --bg: 6 9 30; --surface: 15 22 58; --ink: 238 240 255; --muted: 150 156 205; --accent: 56 189 248; --accent2: 129 140 248; --line: 38 48 98; }
+
 body {
   @apply bg-bg text-ink antialiased;
   background-image: radial-gradient(ellipse at 15% -10%, rgb(var(--accent2) / 0.22), transparent 55%),
