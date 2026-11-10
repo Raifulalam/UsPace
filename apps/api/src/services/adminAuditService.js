@@ -8,7 +8,11 @@ async function record({ admin = null, email = null, action, targetType = null, t
     const last = await AdminAuditLog.findOne().sort({ seq: -1 }).lean();
     const createdAt = new Date();
     const fields = {
-      seq: (last?.seq ?? 0) + 1, adminId: admin ? String(admin._id) : null, // a plain string: database ids flatten to {} when hashed adminEmail: admin ? admin.email : email, action,
+      seq: (last?.seq ?? 0) + 1,
+      // Use a plain string: database ids flatten to {} when hashed.
+      adminId: admin ? String(admin._id) : null,
+      adminEmail: admin ? admin.email : email,
+      action,
       targetType, targetId: targetId == null ? null : String(targetId), details: cleanDetails, ip, at: createdAt.toISOString(),
     };
     const prevHash = last?.hash ?? GENESIS;

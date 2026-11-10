@@ -7,6 +7,8 @@ const { setIo, emitToCouple, emitToCanvas } = require('../services/realtime');
 const canvases = require('../services/canvasService');
 const { opSchema, liveSchema, joinSchema } = require('../schemas/canvas');
 const settings = require('../services/settingsService');
+const calls = require('../services/callService');
+const { startSchema, idSchema, signalSchema } = require('../schemas/calls');
 const messages = require('../services/messageService');
 const { sendSchema } = require('../schemas/messages');
 
@@ -158,11 +160,32 @@ function attachSockets(httpServer) {
       socket.to(`canvas:${p.data.canvasId}`).volatile.emit('canvas:live', { ...p.data, senderId: user.id });
     });
 
+    // ---- Voice and video calls (control + encrypted setup relay only; media goes phone-to-phone) ----
+    const callEvent = (name, schema, limit, run) => socket.on(name, async (payload, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {};
+      if (!allow(socket, name, limit, 60000)) return reply({ ok: false, error: 'RATE_LIMITED' });
+      const p = schema.safeParse(payload);
+      if (!p.success) return reply({ ok: false, error: 'VALIDATION_ERROR' });
+      try {
+        if ((await settings.get()).features.calls === false) return reply({ ok: false, error: 'FEATURE_DISABLED' });
+        if (!(await ensureMember(socket))) return reply({ ok: false, error: 'NO_ACTIVE_COUPLE' });
+        reply({ ok: true, ...(await run(socket.data.user, p.data)) });
+      } catch (e) {
+        reply({ ok: false, error: e.code || 'INTERNAL' });
+      }
+    });
+    callEvent('call:start', startSchema, 6, (u, d) => calls.startCall(u, d));
+    callEvent('call:answer', idSchema, 12, async (u, d) => ({ call: await calls.answerCall(u, d.callId) }));
+    callEvent('call:reject', idSchema, 12, async (u, d) => { await calls.rejectCall(u, d.callId); return {}; });
+    callEvent('call:end', idSchema, 12, async (u, d) => { await calls.endCall(u, d.callId); return {}; });
+    callEvent('call:signal', signalSchema, 600, async (u, d) => { await calls.relaySignal(u, d); return {}; });
+
     socket.on('disconnect', async () => {
-      const coupleId = socket.data.coupleId;
-      if (!coupleId) return;
       const remaining = await io.in(`user:${user.id}`).fetchSockets();
-      if (remaining.length === 0) io.to(`couple:${coupleId}`).emit('presence:update', { userId: user.id, online: false });
+      if (remaining.length > 0) return;
+      calls.onUserOffline(user.id); // a dropped connection ends their call after a short grace period
+      const coupleId = socket.data.coupleId;
+      if (coupleId) io.to(`couple:${coupleId}`).emit('presence:update', { userId: user.id, online: false });
     });
   });
   return io;

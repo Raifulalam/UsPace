@@ -11,6 +11,7 @@ import Onboarding from './Onboarding';
 import Settings from './Settings';
 import Chat from './Chat';
 import Home from './Home';
+import CallProvider from './CallLayer';
 import LoveCanvas from './LoveCanvas';
 import Memories from './Memories';
 import SecurityPanel from './SecurityPanel';
@@ -178,7 +179,7 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
           </section>
         </main>
       ) : (
-        <>
+        <CallProvider user={user} couple={couple} e2ee={x} keyVersion={state.keyVersion}>
           {state.pending.map((d) => (
             <div key={d.id} className="mx-auto mb-2 flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm" role="alert">
               <span>New device “{d.label}” ({owner(d)}) wants to join. Code <strong className="font-mono">{x.roomCode([d])}</strong>. Approve only if it matches what that device shows.</span>
@@ -216,7 +217,7 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
               <LoveCanvas user={user} e2ee={x} keyTick={keyTick} keyVersion={state.keyVersion} partnerName={couple.members.find((m) => m.id !== user.id)?.displayName ?? 'your partner'} onKeysUpdated={refresh} />
             </div>
           )}
-        </>
+        </CallProvider>
       )}
 
       {showSec && state && x && <SecurityPanel e2ee={x} state={state} hasBackup={hasBackup} onClose={() => setShowSec(false)} onChanged={refresh} />}

@@ -94,3 +94,26 @@ test('"Seen" marks the newest of MY messages that the partner has read', () => {
   assert.equal(s.lastSeenMessageId(list, null, 'me'), null);
   assert.equal(s.lastSeenMessageId([{ id: null, senderId: 'me' }], 'zz', 'me'), null); // unsent local messages never show "Seen"
 });
+
+test('call durations', () => {
+  assert.equal(s.formatDuration(0), '0:00');
+  assert.equal(s.formatDuration(5), '0:05');
+  assert.equal(s.formatDuration(65), '1:05');
+  assert.equal(s.formatDuration(3599), '59:59');
+  assert.equal(s.formatDuration(3600), '1:00:00');
+  assert.equal(s.formatDuration(3725.9), '1:02:05');
+  for (const bad of [-5, NaN, undefined, null, 'x']) assert.equal(s.formatDuration(bad), '0:00');
+});
+
+test('call-setup messages: only well-formed offers, answers and candidates pass', () => {
+  assert.deepEqual(s.validateCallSignal({ t: 'offer', sdp: 'v=0\r\n', extra: 1 }), { t: 'offer', sdp: 'v=0\r\n' });
+  assert.deepEqual(s.validateCallSignal({ t: 'answer', sdp: 'v=0' }), { t: 'answer', sdp: 'v=0' });
+  const ice = { t: 'ice', candidate: { candidate: 'candidate:1 1 udp 1 10.0.0.1 5000 typ host', sdpMid: '0', sdpMLineIndex: 0, usernameFragment: 'x' } };
+  assert.deepEqual(s.validateCallSignal(ice), { t: 'ice', candidate: { candidate: 'candidate:1 1 udp 1 10.0.0.1 5000 typ host', sdpMid: '0', sdpMLineIndex: 0 } });
+  assert.deepEqual(s.validateCallSignal({ t: 'ice', candidate: { candidate: '' } }), { t: 'ice', candidate: { candidate: '', sdpMid: null, sdpMLineIndex: null } }); // end of candidates
+  for (const bad of [null, 'x', {}, { t: 'offer' }, { t: 'offer', sdp: '' }, { t: 'offer', sdp: 5 }, { t: 'offer', sdp: 'x'.repeat(30001) }, { t: 'hangup' },
+    { t: 'ice' }, { t: 'ice', candidate: 'nope' }, { t: 'ice', candidate: { candidate: 'x'.repeat(2001) } }, { t: 'ice', candidate: { candidate: 'a', sdpMid: 5 } },
+    { t: 'ice', candidate: { candidate: 'a', sdpMLineIndex: -1 } }, { t: 'ice', candidate: { candidate: 'a', sdpMLineIndex: 1.5 } }]) {
+    assert.equal(s.validateCallSignal(bad), null, JSON.stringify(bad)?.slice(0, 60));
+  }
+});

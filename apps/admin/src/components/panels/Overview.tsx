@@ -8,6 +8,7 @@ type Stats = {
   rooms: { byStatus: Record<string, number>; connectedCouples: number };
   pendingInvitations: number; openReports: number; storage: { usedBytes: number; files: number }; online: { users: number };
   health: { database: { ok: boolean; pingMs: number }; uptimeSeconds: number; memoryMb: number; calls: string };
+  calls: { last24h: number; answeredLast24h: number; activeNow: number };
   subscriptions: { configured: boolean };
 };
 
@@ -28,7 +29,7 @@ export function Overview() {
             <Stat label="Open reports" value={s.openReports} />
             <Stat label="Storage used" value={fmtBytes(s.storage.usedBytes)} hint={`${s.storage.files} encrypted files`} />
             <Stat label="Suspended users" value={s.users.byStatus.suspended ?? 0} hint={`${s.users.byStatus.pending_deletion ?? 0} pending deletion`} />
-            <Stat label="New this month" value={s.users.newLast30d} />
+            <Stat label="Calls (24 h)" value={s.calls.last24h} hint={`${s.calls.answeredLast24h} answered · ${s.calls.activeNow} in progress`} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Panel title="Rooms by status"><ul className="text-sm">{Object.entries(s.rooms.byStatus).map(([k, v]) => <li key={k} className="flex justify-between py-1"><Badge value={k} /><span>{v}</span></li>)}</ul></Panel>
@@ -38,7 +39,7 @@ export function Overview() {
                 <li className="flex justify-between"><span>Database</span><span>{s.health.database.ok ? `ok · ${s.health.database.pingMs} ms` : 'down'}</span></li>
                 <li className="flex justify-between"><span>Uptime</span><span>{Math.floor(s.health.uptimeSeconds / 3600)} h {Math.floor((s.health.uptimeSeconds % 3600) / 60)} m</span></li>
                 <li className="flex justify-between"><span>Memory</span><span>{s.health.memoryMb} MB</span></li>
-                <li className="flex justify-between"><span>Calls</span><span className="text-slate-500">{s.health.calls}</span></li>
+                <li className="flex justify-between"><span>Calls</span><span>{s.calls.activeNow} in progress · history only, no content</span></li>
                 <li className="flex justify-between"><span>Subscriptions</span><span className="text-slate-500">{s.subscriptions.configured ? 'configured' : 'not configured yet'}</span></li>
               </ul>
             </Panel>

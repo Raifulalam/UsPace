@@ -190,6 +190,23 @@ export class E2EE {
     try { return validateReaction(cc.decryptRaw(key, r, this.reactionAad(r.messageId, r.userId, r.keyVersion))); } catch { return null; }
   }
 
+  // ---------- calls: the setup messages (SDP, ICE) are encrypted with the room key ----------
+  // The server only relays them, so it cannot swap the connection fingerprints (a man-in-the-middle attack) and cannot see network addresses.
+  private callAad(callId: string, senderId: string, keyVersion: number) {
+    return `couples-call-v1|${this.coupleId}|${callId}|${senderId}|${keyVersion}`;
+  }
+  buildCallSignal(callId: string, senderId: string, keyVersion: number, payload: unknown) {
+    const key = this.keys.get(keyVersion);
+    if (!key) throw new Error('NO_KEY');
+    const enc = cc.encryptRaw(key, payload, this.callAad(callId, senderId, keyVersion));
+    return { callId, keyVersion, nonce: enc.nonce, ciphertext: enc.ciphertext };
+  }
+  decryptCallSignal(callId: string, senderId: string, w: { keyVersion: number; nonce: string; ciphertext: string }): unknown | null {
+    const key = this.keys.get(w.keyVersion);
+    if (!key) return null;
+    try { return cc.decryptRaw(key, w, this.callAad(callId, senderId, w.keyVersion)); } catch { return null; }
+  }
+
   // ---------- memories & albums ----------
   private memoryAad(createdBy: string, clientMemoryId: string, keyVersion: number, type: string) {
     return `couples-memory-v1|${this.coupleId}|${createdBy}|${clientMemoryId}|${keyVersion}|${type}`;

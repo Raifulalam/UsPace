@@ -15,6 +15,11 @@ const schema = z.object({
   ADMIN_JWT_SECRET: z.string().min(32, 'ADMIN_JWT_SECRET must be at least 32 characters').optional(),
   ADMIN_MFA_KEY: z.string().min(32, 'ADMIN_MFA_KEY must be at least 32 characters').optional(),
   ADMIN_ORIGIN: z.string().url().default('http://localhost:3001'),
+  // Calls: public STUN lets phones discover their address; a TURN relay is needed for restrictive networks (see README for a coturn setup).
+  STUN_URLS: z.string().default('stun:stun.l.google.com:19302'),
+  TURN_URLS: z.string().optional(),
+  TURN_SECRET: z.string().min(16, 'TURN_SECRET must be at least 16 characters').optional(),
+  TURN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(3600),
   MEDIA_DIR: z.string().default('./data/media'),
   FREE_STORAGE_BYTES: z.coerce.number().int().positive().default(1073741824), // 1 GiB per couple on the free plan
   REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),

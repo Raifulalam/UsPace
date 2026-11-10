@@ -24,6 +24,7 @@ require('./models/AdminAuditLog');
 require('./models/ApplicationSettings');
 require('./models/MessageReaction');
 require('./models/ReadState');
+require('./models/CallHistory');
 const { createApp } = require('./app');
 const { attachSockets } = require('./sockets');
 
@@ -34,6 +35,8 @@ const { attachSockets } = require('./sockets');
   server.listen(config.PORT, () => console.log(`API listening on :${config.PORT}`));
   // Housekeeping for abandoned uploads / unreferenced files (see mediaService.sweep).
   setInterval(() => require('./services/mediaService').sweep().catch((e) => console.error('media sweep failed', e.message)), 30 * 60 * 1000).unref();
+  // Closes calls whose end event was lost (server restart, crash).
+  setInterval(() => require('./services/callService').sweepStale().catch((e) => console.error('call sweep failed', e.message)), 5 * 60 * 1000).unref();
   // Permanent-deletion job (closed rooms after 30 days, deleted accounts after the 14-day grace period).
   setInterval(() => require('./services/retentionService').sweep().catch((e) => console.error('retention sweep failed', e.message)), 6 * 60 * 60 * 1000).unref();
   const shutdown = () => server.close(() => process.exit(0));

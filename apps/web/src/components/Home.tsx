@@ -1,13 +1,15 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Brush, Heart, Images, MessageCircle } from 'lucide-react';
-import { TTL_OPTIONS, anniversaryInfo, formatRelative, hueOf, initialsOf, localTodayMs } from '@couples/space-core';
+import { Brush, Heart, Images, MessageCircle, Phone, Video } from 'lucide-react';
+import { TTL_OPTIONS, anniversaryInfo, formatDuration, formatRelative, localTodayMs } from '@couples/space-core';
 import { validateMemoryPayload, type MemoryPayload, type MemoryType } from '@couples/media-core';
 import { api } from '@/lib/api';
 import type { E2EE } from '@/lib/e2ee';
 import type { ChatMessage, Couple, User, WireMessage } from '@/lib/types';
 import { friendly } from '@/lib/mediaClient';
 import MediaView from './MediaView';
+import { Avatar } from './Avatar';
+import { useCalls } from './CallLayer';
 
 type Props = {
   user: User; couple: Couple; e2ee: E2EE; keyTick: number; unread: number; visible: boolean;
@@ -15,14 +17,6 @@ type Props = {
 };
 type FavWire = { id: string; createdBy: string; clientMemoryId: string; type: MemoryType; eventDate: string; keyVersion: number; nonce: string; ciphertext: string };
 type Activity = { icon: string; text: string; at: number };
-
-export function Avatar({ name, size = 56 }: { name: string; size?: number }) {
-  const hue = hueOf(name);
-  return (
-    <span className="grid shrink-0 place-items-center rounded-full font-semibold text-white shadow-soft" aria-hidden
-      style={{ width: size, height: size, fontSize: size * 0.38, background: `linear-gradient(135deg, hsl(${hue} 75% 58%), hsl(${(hue + 50) % 360} 70% 50%))` }}>{initialsOf(name)}</span>
-  );
-}
 
 const THEMES = [
   { id: 'rose', label: 'Rose', swatch: 'linear-gradient(135deg,#ec4899,#8b5cf6)' },
@@ -108,6 +102,7 @@ export default function Home({ user, couple, e2ee, keyTick, unread, visible, go,
         <button className="btn-ghost flex-col py-3" onClick={() => go('canvas')}><Brush className="h-5 w-5" aria-hidden />Draw together</button>
         <button className="btn-ghost flex-col py-3" onClick={() => go('memories')}><Images className="h-5 w-5" aria-hidden />Memories</button>
       </nav>
+      <CallCard partnerName={partnerName} visible={visible} />
       {loadErr && <p role="alert" className="text-center text-sm text-red-500">{loadErr}</p>}
 
       <section className="card" aria-labelledby="h-chat">
@@ -184,6 +179,52 @@ function RoomSettings({ couple, onSaved }: { couple: Couple; onSaved: () => void
         {msg && <p role="status" className="text-sm text-accent2">{msg}</p>}
         <button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
       </form>
+    </section>
+  );
+}
+
+type CallRow = { id: string; direction: 'outgoing' | 'incoming'; type: 'audio' | 'video'; status: string; startedAt: string; durationSec: number; reason: string | null };
+
+function CallCard({ partnerName, visible }: { partnerName: string; visible: boolean }) {
+  const { start, busy, available } = useCalls();
+  const [rows, setRows] = useState<CallRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(() => api<{ calls: CallRow[] }>('/calls/history', { query: { limit: 5 } }).then((r) => setRows(r.calls)).catch(() => {}), []);
+  useEffect(() => { if (!visible) return; void load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [visible, load]);
+  useEffect(() => { if (!busy) void load(); }, [busy, load]); // refresh right after a call ends
+
+  const describe = (c: CallRow) => {
+    const kind = c.type === 'video' ? 'video' : 'voice';
+    if (c.status === 'missed') return c.direction === 'incoming' ? { text: `Missed ${kind} call`, bad: true } : { text: c.reason === 'offline' ? `${partnerName} wasn’t online` : `No answer (${kind})`, bad: false };
+    if (c.status === 'rejected') return { text: c.direction === 'incoming' ? `You declined a ${kind} call` : `${partnerName} declined`, bad: false };
+    if (c.status === 'canceled') return { text: c.direction === 'incoming' ? `Missed ${kind} call` : `Canceled ${kind} call`, bad: c.direction === 'incoming' };
+    const length = c.durationSec ? ` · ${formatDuration(c.durationSec)}` : '';
+    return { text: `${c.direction === 'outgoing' ? 'You called' : `${partnerName} called`} (${kind})${length}`, bad: false };
+  };
+  const hide = async (id: string) => { try { await api(`/calls/history/${id}`, { method: 'DELETE' }); setRows((r) => r.filter((x) => x.id !== id)); } catch (e) { setErr(friendly(e)); } };
+  const clear = async () => { if (!confirm('Clear your call history? Your partner’s copy is not affected.')) return; try { await api('/calls/history', { method: 'DELETE' }); setRows([]); } catch (e) { setErr(friendly(e)); } };
+
+  return (
+    <section className="card" aria-labelledby="h-calls">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 id="h-calls" className="font-medium">Calls</h3>
+        <div className="flex gap-2">
+          <button className="btn-ghost px-3 py-1.5 text-sm" disabled={!available || busy} onClick={() => start('audio')}><Phone className="h-4 w-4" aria-hidden />Voice</button>
+          <button className="btn-primary px-3 py-1.5 text-sm" disabled={!available || busy} onClick={() => start('video')}><Video className="h-4 w-4" aria-hidden />Video</button>
+        </div>
+      </div>
+      <p className="mb-2 text-xs text-muted">Calls go directly between your phones and are end-to-end encrypted. Nothing is recorded. Your microphone and camera are only used while a call is on.</p>
+      {err && <p role="alert" className="mb-1 text-sm text-red-500">{err}</p>}
+      {rows.length === 0 ? <p className="text-sm text-muted">No calls yet.</p> : (
+        <>
+          <ul className="grid gap-1.5">{rows.map((c) => { const d = describe(c); return (
+            <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className={d.bad ? 'font-medium text-red-500' : ''}>{c.type === 'video' ? '🎥' : '📞'} {d.text}</span>
+              <span className="flex shrink-0 items-center gap-2 text-xs text-muted">{formatRelative(Date.parse(c.startedAt))}<button className="underline" aria-label="Remove from my history" onClick={() => hide(c.id)}>remove</button></span>
+            </li>); })}</ul>
+          <button className="mt-2 text-xs text-muted underline" onClick={clear}>Clear my call history</button>
+        </>
+      )}
     </section>
   );
 }

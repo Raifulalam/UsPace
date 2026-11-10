@@ -12,6 +12,7 @@ const Memory = require('../models/Memory');
 const Album = require('../models/Album');
 const MediaAsset = require('../models/MediaAsset');
 const Block = require('../models/Block');
+const CallHistory = require('../models/CallHistory');
 const { getStorage } = require('../storage');
 const { closedCoupleCutoff } = require('../utils/privacy');
 
@@ -35,6 +36,7 @@ async function purgeCouple(couple) {
     files: await count(MediaAsset.deleteMany({ coupleId: id })),
     keyEnvelopes: await count(RoomKeyEnvelope.deleteMany({ coupleId: id })),
     invitations: await count(Invitation.deleteMany({ coupleId: id })),
+    calls: await count(CallHistory.deleteMany({ coupleId: id })),
   };
   await Couple.deleteOne({ _id: id });
   return out;
@@ -50,6 +52,7 @@ async function purgeUser(user) {
   await RefreshToken.deleteMany({ userId: user._id });
   await RecoveryBlob.deleteMany({ userId: user._id });
   await Block.deleteMany({ $or: [{ blockerId: user._id }, { blockedId: user._id }] });
+  await CallHistory.deleteMany({ $or: [{ callerId: user._id }, { calleeId: user._id }] });
   await Invitation.deleteMany({ $or: [{ inviterId: user._id }, { inviteeId: user._id }] });
   await User.deleteOne({ _id: user._id, status: 'pending_deletion' });
   return true;

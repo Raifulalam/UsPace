@@ -29,6 +29,7 @@ function createApp() {
   app.use('/api/v1/devices', require('./routes/devices'));
   app.use('/api/v1/keys', require('./routes/keys'));
   app.use('/api/v1/messages', requireFeature('chat'), require('./routes/messages'));
+  app.use('/api/v1/calls', requireFeature('calls'), require('./routes/calls'));
   app.use('/api/v1/canvases', requireFeature('canvas'), require('./routes/canvases'));
   app.use('/api/v1/media', requireFeature('media'), require('./routes/media'));
   app.use('/api/v1/users', require('./routes/users'));

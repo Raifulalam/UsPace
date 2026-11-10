@@ -97,7 +97,32 @@ function lastSeenMessageId(messages, partnerLastReadId, myId) {
   return null;
 }
 
+// ---------- calls ----------
+const formatDuration = (sec) => {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
+};
+
+/**
+ * Call-setup messages (SDP offers/answers and ICE candidates) arrive from the partner's device, decrypted.
+ * Treat them as untrusted: only these exact shapes with sane sizes get through to the browser's WebRTC stack.
+ */
+function validateCallSignal(p) {
+  if (!p || typeof p !== 'object') return null;
+  if (p.t === 'offer' || p.t === 'answer') return typeof p.sdp === 'string' && p.sdp.length > 0 && p.sdp.length <= 30000 ? { t: p.t, sdp: p.sdp } : null;
+  if (p.t === 'ice') {
+    const c = p.candidate;
+    if (!c || typeof c !== 'object' || typeof c.candidate !== 'string' || c.candidate.length > 2000) return null; // '' marks the end of candidates
+    const mid = c.sdpMid == null ? null : typeof c.sdpMid === 'string' && c.sdpMid.length <= 64 ? c.sdpMid : undefined;
+    const idx = c.sdpMLineIndex == null ? null : Number.isInteger(c.sdpMLineIndex) && c.sdpMLineIndex >= 0 && c.sdpMLineIndex <= 64 ? c.sdpMLineIndex : undefined;
+    return mid === undefined || idx === undefined ? null : { t: 'ice', candidate: { candidate: c.candidate, sdpMid: mid, sdpMLineIndex: idx } };
+  }
+  return null;
+}
+
 module.exports = {
+  formatDuration, validateCallSignal,
   DAY, anniversaryInfo, localTodayMs, parseDate, isLeap, initialsOf, hueOf, formatRelative, dayKey, groupByDay,
   TTL_OPTIONS, ALLOWED_TTL, REACTIONS, STICKERS, validateReaction, validateSticker, validateReplyTo, lastSeenMessageId,
 };

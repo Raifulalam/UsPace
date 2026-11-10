@@ -10,6 +10,7 @@ const Memory = require('../models/Memory');
 const MediaAsset = require('../models/MediaAsset');
 const Report = require('../models/Report');
 const Block = require('../models/Block');
+const CallHistory = require('../models/CallHistory');
 const AdminAuditLog = require('../models/AdminAuditLog');
 const AppError = require('../utils/AppError');
 const realtime = require('./realtime');
@@ -190,18 +191,20 @@ async function stats() {
   const t0 = Date.now();
   await mongoose.connection.db.admin().ping();
   const dbMs = Date.now() - t0;
-  const [users, couples, newDay, newWeek, newMonth, dau, mau, pendingInvitations, openReports, storage, openAssets] = await Promise.all([
+  const [users, couples, newDay, newWeek, newMonth, dau, mau, pendingInvitations, openReports, storage, openAssets, calls24, answered24, callsNow] = await Promise.all([
     group(User, 'status'), group(Couple, 'status'), User.countDocuments({ createdAt: { $gt: ago(1) } }), User.countDocuments({ createdAt: { $gt: ago(7) } }),
     User.countDocuments({ createdAt: { $gt: ago(30) } }), distinct(ago(1)), distinct(ago(30)),
     Invitation.countDocuments({ status: { $in: ['pending', 'accepted'] }, expiresAt: { $gt: new Date() } }), Report.countDocuments({ status: { $in: ['open', 'reviewing'] } }),
     Couple.aggregate([{ $group: { _id: null, bytes: { $sum: '$storageUsed' } } }]), MediaAsset.countDocuments({ status: 'ready' }),
+    CallHistory.countDocuments({ startedAt: { $gt: ago(1) } }), CallHistory.countDocuments({ startedAt: { $gt: ago(1) }, answeredAt: { $ne: null } }), CallHistory.countDocuments({ active: true }),
   ]);
   return {
     users: { total: Object.values(users).reduce((a, b) => a + b, 0), byStatus: users, newLast24h: newDay, newLast7d: newWeek, newLast30d: newMonth, dailyActive: dau, monthlyActive: mau },
     rooms: { byStatus: couples, connectedCouples: couples.active ?? 0 },
     pendingInvitations, openReports, storage: { usedBytes: storage[0]?.bytes ?? 0, files: openAssets },
     online: { users: realtime.onlineUsers() },
-    health: { api: 'ok', database: { ok: true, pingMs: dbMs }, realtime: { onlineUsers: realtime.onlineUsers() }, uptimeSeconds: Math.round(process.uptime()), memoryMb: Math.round(process.memoryUsage().rss / 1048576), calls: 'not configured yet' },
+    health: { api: 'ok', database: { ok: true, pingMs: dbMs }, realtime: { onlineUsers: realtime.onlineUsers() }, uptimeSeconds: Math.round(process.uptime()), memoryMb: Math.round(process.memoryUsage().rss / 1048576), calls: 'metadata only' },
+    calls: { last24h: calls24, answeredLast24h: answered24, activeNow: callsNow },
     subscriptions: { configured: false },
   };
 }

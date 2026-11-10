@@ -6,3 +6,5 @@ process.env.BCRYPT_COST = '4';
 process.env.MEDIA_DIR = require('path').join(require('os').tmpdir(), `couples-test-media-${process.pid}`);
 process.env.ADMIN_JWT_SECRET = 'admin-test-secret-admin-test-secret-123456';
 process.env.ADMIN_MFA_KEY = 'admin-mfa-key-admin-mfa-key-1234567890';
+process.env.TURN_URLS = 'turn:turn.test:3478,turns:turn.test:5349';
+process.env.TURN_SECRET = 'turn-test-secret-0123456789';

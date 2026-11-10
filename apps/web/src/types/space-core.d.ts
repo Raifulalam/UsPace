@@ -15,5 +15,7 @@ declare module '@couples/space-core' {
   export function validateReaction(p: unknown): string | null;
   export function validateSticker(p: unknown): string | null;
   export function validateReplyTo(v: unknown): string | null;
+  export function formatDuration(sec: number): string;
+  export function validateCallSignal(p: unknown): { t: 'offer' | 'answer'; sdp: string } | { t: 'ice'; candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } } | null;
   export function lastSeenMessageId(messages: { id: string | null; senderId: string }[], partnerLastReadId: string | null, myId: string): string | null;
 }
