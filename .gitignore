@@ -6,3 +6,6 @@ build/
 coverage/
 .env
 .env.*
+
+# Firebase Admin SDK credentials
+apps/api/*firebase-adminsdk*.json
