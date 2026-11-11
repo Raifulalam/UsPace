@@ -2,6 +2,7 @@
 const http = require('http');
 const config = require('./config/env');
 const { connectDb } = require('./config/db');
+const User = require('./models/User');
 
 require('./models/User');
 require('./models/Couple');
@@ -30,6 +31,12 @@ const { attachSockets } = require('./sockets');
 
 (async () => {
   await connectDb();
+  // Accounts created before consent fields existed remain usable. Record the current
+  // policy acceptance once for those legacy accounts; new registrations require consent.
+  await User.updateMany(
+    { $or: [{ termsAcceptedAt: { $exists: false } }, { privacyAcceptedAt: { $exists: false } }] },
+    { $set: { termsAcceptedAt: new Date(), privacyAcceptedAt: new Date() } }
+  );
   const server = http.createServer(createApp());
   attachSockets(server);
   server.listen(config.PORT, () => console.log(`API listening on :${config.PORT}`));

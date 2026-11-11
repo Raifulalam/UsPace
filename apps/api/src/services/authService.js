@@ -81,7 +81,19 @@ async function login({ identifier, password }, ctx) {
     throw new AppError(401, 'INVALID_CREDENTIALS', 'Incorrect username/email or password');
   }
   if (user.status !== 'active') throw new AppError(403, 'ACCOUNT_SUSPENDED', 'Account is not active');
-  await User.updateOne({ _id: user._id }, { $set: { failedLoginCount: 0, lastLoginAt: new Date() }, $unset: { lockUntil: 1 } });
+  const now = new Date();
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        failedLoginCount: 0,
+        lastLoginAt: now,
+        ...(user.termsAcceptedAt ? {} : { termsAcceptedAt: now }),
+        ...(user.privacyAcceptedAt ? {} : { privacyAcceptedAt: now }),
+      },
+      $unset: { lockUntil: 1 },
+    }
+  );
   return { user, session: await issueSession(user, ctx) };
 }
 
