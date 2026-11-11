@@ -8,7 +8,10 @@ import { ApiError } from '@/lib/api';
 
 function explain(e: unknown): string {
   if (e instanceof ApiError && e.code === 'ACCOUNT_SUSPENDED') return 'This account is suspended or scheduled for deletion. If you deleted it by mistake you can restore it within 14 days.';
-  if (!(e instanceof ApiError)) return 'Could not reach the server. Is it running?';
+  if (!(e instanceof ApiError)) {
+    const apiOrigin = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:4000` : 'the API';
+    return `Could not connect to ${apiOrigin}. Check that the API is running on port 4000 and that this page uses the same host name.`;
+  }
   if (Array.isArray(e.details) && e.details.length) return e.details.map((d: { path: string; message: string }) => `${d.path}: ${d.message}`).join(' · ');
   return e.message;
 }

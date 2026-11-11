@@ -17,12 +17,19 @@
 :root[data-theme='midnight'] { --bg: 6 9 30; --surface: 15 22 58; --ink: 238 240 255; --muted: 150 156 205; --accent: 56 189 248; --accent2: 129 140 248; --line: 38 48 98; }
 
 body {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
   @apply bg-bg text-ink antialiased;
   background-image: radial-gradient(ellipse at 15% -10%, rgb(var(--accent2) / 0.22), transparent 55%),
                     radial-gradient(ellipse at 100% 0%, rgb(var(--accent) / 0.16), transparent 50%);
   background-attachment: fixed;
   min-height: 100vh;
 }
+#__next { min-height: 100vh; width: 100%; }
 :focus-visible { outline: 2px solid rgb(var(--accent2)); outline-offset: 2px; }
 
 @layer components {

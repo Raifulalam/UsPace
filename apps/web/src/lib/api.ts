@@ -3,12 +3,19 @@ import type { User } from './types';
 const inferredApiBase = typeof window !== 'undefined'
   ? `${window.location.protocol}//${window.location.hostname}:4000`
   : 'http://localhost:4000';
-const configuredApiBase = process.env.NEXT_PUBLIC_API_URL;
-export const API_BASE = typeof window !== 'undefined' &&
-  window.location.hostname !== 'localhost' &&
-  window.location.hostname !== '127.0.0.1'
-  ? inferredApiBase
-  : configuredApiBase ?? inferredApiBase;
+const configuredApiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+const deployedApiBase = 'https://uspace-ubq2.onrender.com';
+const browserApiBase = typeof window !== 'undefined' ? inferredApiBase : undefined;
+const isLocalAlias = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  configuredApiBase &&
+  /:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/i.test(configuredApiBase);
+const isDeployedWeb = typeof window !== 'undefined' && window.location.hostname === 'wespc.vercel.app';
+export const API_BASE = isDeployedWeb
+  ? deployedApiBase
+  : isLocalAlias
+    ? browserApiBase!
+    : configuredApiBase ?? browserApiBase ?? inferredApiBase;
 
 // The access token lives ONLY in memory (never localStorage). The refresh token is an httpOnly cookie.
 let accessToken: string | null = null;

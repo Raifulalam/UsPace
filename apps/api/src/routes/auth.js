@@ -13,7 +13,10 @@ const COOKIE = 'rt';
 const cookieOpts = () => ({
   httpOnly: true,
   secure: config.NODE_ENV === 'production',
-  sameSite: 'strict', // refresh cookie is never sent cross-site (CSRF defence)
+  // The production web app and API may be on different sites (for example
+  // vercel.app and onrender.com). Secure SameSite=None is required there so
+  // credentialed refresh requests can keep the session after a reload.
+  sameSite: config.NODE_ENV === 'production' ? 'none' : 'strict',
   path: '/api/v1/auth',
   maxAge: config.REFRESH_TOKEN_TTL_DAYS * 86400000,
 });

@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://uspace-ubq2.onrender.com';
 const isProd = process.env.NODE_ENV === 'production';
 
 // NOTE: 'unsafe-inline' scripts are required by Next's inline bootstrap unless nonces are wired up.

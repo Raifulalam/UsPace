@@ -128,7 +128,7 @@ export default function Memories({ user, e2ee, keyTick, keyVersion, visible }: P
   const pct = usage ? Math.min(100, Math.round((usage.used / usage.quota) * 100)) : 0;
 
   return (
-    <section className="mx-auto max-w-3xl px-3 pb-10" aria-label="Our Memories">
+    <section className="w-full px-3 pb-10 sm:px-6 lg:px-10" aria-label="Our Memories">
       <div className="flex flex-wrap items-center gap-2 py-3">
         <h2 className="text-lg font-semibold">Our Memories</h2>
         <button className="btn-primary ml-auto" onClick={() => setAdding(true)}><Plus className="h-4 w-4" aria-hidden />Add memory</button>

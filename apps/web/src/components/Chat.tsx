@@ -302,7 +302,7 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, visible,
   const canEdit = (m: ChatMessage) => m.senderId === user.id && (m.kind === 'text' || m.kind === 'media') && !m.sticker && Date.now() - Date.parse(m.createdAt) < EDIT_MS;
 
   return (
-    <section className="relative mx-auto flex h-[calc(100vh-8.5rem)] max-w-2xl flex-col px-3 pb-3" aria-label={`Chat with ${partnerName}`}>
+    <section className="relative flex h-[calc(100vh-8.5rem)] w-full flex-col px-3 pb-3 sm:px-6 lg:px-10" aria-label={`Chat with ${partnerName}`}>
       <div className="flex items-center justify-between gap-2 py-2 text-xs text-muted">
         <p aria-live="polite"><Lock className="mr-1 inline h-3 w-3" aria-hidden />End-to-end encrypted · {partnerName} {partnerOnline ? 'is online' : ''} {conn !== 'online' ? `· ${conn}` : ''}</p>
         <div className="flex items-center gap-1">

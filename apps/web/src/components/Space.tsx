@@ -45,7 +45,7 @@ export default function Space() {
   if (status !== 'authed' || !user || couple === undefined) return <main className="grid min-h-screen place-items-center text-muted">Loading…</main>;
 
   const header = (title: string, extra?: ReactNode) => (
-    <header className="mx-auto flex h-[4.5rem] max-w-2xl items-center justify-between px-4">
+    <header className="flex h-[4.5rem] w-full items-center justify-between px-4 sm:px-6 lg:px-10">
       <h1 className="flex items-center gap-2 text-lg font-semibold"><Heart className="h-5 w-5 fill-accent text-accent" aria-hidden />{title}</h1>
       <div className="flex items-center gap-2">{extra}<button className="btn-ghost" aria-label={`Appearance: ${mode === 'auto' ? 'follows your device' : mode}. Tap to change.`} onClick={cycle}>{mode === 'light' ? <Sun className="h-4 w-4" /> : mode === 'dark' ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}</button><button className="btn-ghost" aria-label="Settings" onClick={() => setShowSettings(true)}><SettingsIcon className="h-4 w-4" /></button><button className="btn-ghost" aria-label="Log out" onClick={logout}><LogOut className="h-4 w-4" /></button></div>
     </header>
@@ -162,7 +162,7 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
   return (
     <>
       {header(couple.name, shield)}
-      {err && <p role="alert" className="mx-auto mb-2 max-w-2xl rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{err}</p>}
+      {err && <p role="alert" className="mx-3 mb-2 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500 sm:mx-6 lg:mx-10">{err}</p>}
 
       {!state || !x ? (
         <main className="grid place-items-center py-20 text-muted">Setting up encryption on this device…</main>
@@ -187,7 +187,7 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
       ) : (
         <CallProvider user={user} couple={couple} e2ee={x} keyVersion={state.keyVersion}>
           {state.pending.map((d) => (
-            <div key={d.id} className="mx-auto mb-2 flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm" role="alert">
+            <div key={d.id} className="mx-3 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm sm:mx-6 lg:mx-10" role="alert">
               <span>New device “{d.label}” ({owner(d)}) wants to join. Code <strong className="font-mono">{x.roomCode([d])}</strong>. Approve only if it matches what that device shows.</span>
               <span className="flex gap-2">
                 <button className="btn-primary" disabled={busy} onClick={() => guarded(() => x.approve(d))}>Approve</button>
@@ -196,12 +196,12 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
             </div>
           ))}
           {hasBackup === false && (
-            <div className="mx-auto mb-2 flex max-w-2xl flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/70 px-4 py-3 text-sm">
+            <div className="mx-3 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface/70 px-4 py-3 text-sm sm:mx-6 lg:mx-10">
               <span>Set up a recovery key so you never lose your history.</span>
               <button className="btn-ghost" disabled={busy} onClick={() => guarded(async () => { setRk(await x.createRecovery()); setHasBackup(true); })}>Create recovery key</button>
             </div>
           )}
-          <nav className="mx-auto mb-2 flex max-w-2xl gap-1.5 px-3" aria-label="Sections">
+          <nav className="mb-2 flex w-full gap-1.5 px-3 sm:px-6 lg:px-10" aria-label="Sections">
             <button className={`btn-ghost relative flex-1 px-2 ${view === 'home' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'home' ? 'page' : undefined} onClick={() => { setView('home'); }}><HomeIcon className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Home</span></button>
             <button className={`btn-ghost relative flex-1 px-2 ${view === 'chat' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'chat' ? 'page' : undefined} onClick={() => { setView('chat'); }}><MessageCircle className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Chat</span>{unread > 0 && view !== 'chat' && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-xs font-semibold text-white" aria-label={`${unread} unread messages`}>{unread > 99 ? '99+' : unread}</span>}</button>
             <button className={`btn-ghost relative flex-1 px-2 ${view === 'canvas' ? 'border-accent2 bg-accent2/20' : ''}`} aria-current={view === 'canvas' ? 'page' : undefined} onClick={() => { setView('canvas'); setCanvasOpened(true); }}><Brush className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Canvas</span></button>

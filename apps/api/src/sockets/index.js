@@ -46,7 +46,8 @@ async function ensureMember(socket) {
 }
 
 function attachSockets(httpServer) {
-  const io = new Server(httpServer, { cors: { origin: config.CLIENT_ORIGIN, credentials: true } });
+  const origins = [config.CLIENT_ORIGIN, config.ADMIN_ORIGIN, ...config.ADDITIONAL_CLIENT_ORIGINS];
+  const io = new Server(httpServer, { cors: { origin: origins, credentials: true } });
   setIo(io);
 
   io.use(async (socket, next) => {

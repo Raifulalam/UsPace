@@ -8,7 +8,7 @@ const schema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   CLIENT_ORIGIN: z.string().url(),
-  ADDITIONAL_CLIENT_ORIGINS: z.string().default('').transform((v) => v.split(',').map((x) => x.trim()).filter(Boolean)),
+  ADDITIONAL_CLIENT_ORIGINS: z.string().default('http://127.0.0.1:3000').transform((v) => v.split(',').map((x) => x.trim()).filter(Boolean)),
   MIN_AGE: z.coerce.number().int().min(13).default(18),
   INVITATION_TTL_HOURS: z.coerce.number().positive().default(72),
   BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(12),

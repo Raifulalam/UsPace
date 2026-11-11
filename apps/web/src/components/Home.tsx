@@ -79,7 +79,7 @@ export default function Home({ user, couple, e2ee, keyTick, unread, visible, go,
   ].sort((a, b) => b.at - a.at);
 
   return (
-    <div className="mx-auto grid max-w-2xl gap-4 px-3 pb-10">
+    <div className="grid w-full gap-4 px-3 pb-10 sm:px-6 lg:px-10">
       <section className="card text-center" aria-label="Our space">
         <div className="flex items-center justify-center">
           <Avatar name={myName} size={72} />

@@ -403,7 +403,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
   const textScale = cssW / W;
 
   return (
-    <section className="mx-auto max-w-4xl px-3 pb-6" aria-label="Live Love Canvas">
+    <section className="w-full px-3 pb-6 sm:px-6 lg:px-10" aria-label="Live Love Canvas">
       <div className="flex flex-wrap items-center gap-2 py-2">
         <label className="sr-only" htmlFor="canvas-select">Choose canvas</label>
         <select id="canvas-select" className="input w-auto py-2" value={activeId ?? ''} onChange={(e) => setActiveId(e.target.value)}>
