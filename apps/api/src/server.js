@@ -9,6 +9,7 @@ require('./models/Couple');
 require('./models/Invitation');
 require('./models/RefreshToken');
 require('./models/Device');
+require('./models/PushToken');
 require('./models/RoomKeyEnvelope');
 require('./models/Message');
 require('./models/RecoveryBlob');

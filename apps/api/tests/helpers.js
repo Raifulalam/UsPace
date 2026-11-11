@@ -12,6 +12,7 @@ require('../src/models/Couple');
 require('../src/models/Invitation');
 require('../src/models/RefreshToken');
 require('../src/models/Device');
+require('../src/models/PushToken');
 require('../src/models/RoomKeyEnvelope');
 require('../src/models/Message');
 require('../src/models/RecoveryBlob');

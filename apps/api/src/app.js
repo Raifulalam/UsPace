@@ -28,6 +28,7 @@ function createApp() {
   app.use('/api/v1/couples', require('./routes/couples'));
   app.use('/api/v1/invitations', require('./routes/invitations'));
   app.use('/api/v1/devices', require('./routes/devices'));
+  app.use('/api/v1/push-tokens', require('./routes/pushTokens'));
   app.use('/api/v1/keys', require('./routes/keys'));
   app.use('/api/v1/messages', requireFeature('chat'), require('./routes/messages'));
   app.use('/api/v1/calls', requireFeature('calls'), require('./routes/calls'));

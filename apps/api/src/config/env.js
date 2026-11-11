@@ -24,6 +24,10 @@ const schema = z.object({
   MEDIA_DIR: z.string().default('./data/media'),
   FREE_STORAGE_BYTES: z.coerce.number().int().positive().default(1073741824), // 1 GiB per couple on the free plan
   REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  // FCM is optional. The API remains usable when these credentials are absent.
+  FIREBASE_PROJECT_ID: z.string().min(1).optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().email().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().min(1).optional(),
 });
 
 const parsed = schema.safeParse(process.env);

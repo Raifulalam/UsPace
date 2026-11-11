@@ -7,13 +7,18 @@ const { zObjectId } = require('../utils/b64');
 const { sendSchema, listSchema, editSchema, reactionSchema, readSchema } = require('../schemas/messages');
 const svc = require('../services/messageService');
 const { emitToCouple } = require('../services/realtime');
+const { notifyNewMessage } = require('../services/pushNotificationService');
 
 const idParam = z.object({ id: zObjectId }).strict();
 router.use(authenticate);
 
 router.post('/', validate(sendSchema), asyncHandler(async (req, res) => {
   const { message, created, coupleId } = await svc.sendMessage(req.user, req.body);
-  if (created) emitToCouple(coupleId, 'message:new', message);
+  if (created) {
+    emitToCouple(coupleId, 'message:new', message);
+    notifyNewMessage({ coupleId, senderId: req.user._id, messageId: message.id })
+      .catch((error) => console.error('push notification delivery failed', error));
+  }
   res.status(created ? 201 : 200).json({ data: { message } });
 }));
 router.get('/', validate(listSchema, 'query'), asyncHandler(async (req, res) => {

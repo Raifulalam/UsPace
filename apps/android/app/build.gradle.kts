@@ -31,6 +31,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    buildFeatures { buildConfig = true }
     sourceSets {
         // Shared test cases: the same JSON is run by the JavaScript tests and by the Kotlin tests.
         getByName("test") { resources.srcDir("../../../packages/canvas-core/fixtures") }
@@ -47,6 +48,17 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
-implementation("com.google.firebase:firebase-messaging")
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    configurations.configureEach {
+        resolutionStrategy.force(
+            "org.jetbrains.kotlin:kotlin-stdlib:1.9.22",
+            "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22",
+            "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22",
+            "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.1",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+        )
+    }
 }
