@@ -8,16 +8,14 @@ export type LiveItem = {
 const FONT = 'ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif';
 
 /** Size a canvas for crisp rendering and return a context whose units are the logical W x H space. */
-export function fit(canvas: HTMLCanvasElement, cssW: number): CanvasRenderingContext2D {
+export function fit(canvas: HTMLCanvasElement, cssW: number, cssH = (cssW * H) / W): CanvasRenderingContext2D {
   const dpr = window.devicePixelRatio || 1;
-  const cssH = (cssW * H) / W;
   canvas.style.width = `${cssW}px`;
   canvas.style.height = `${cssH}px`;
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
   const ctx = canvas.getContext('2d')!;
-  const k = canvas.width / W;
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
   return ctx;
 }
 

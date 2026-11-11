@@ -19,19 +19,15 @@ class LiveItem(
     @Volatile var lastAt: Long = System.currentTimeMillis(),
 )
 
-/** Draws the shared canvas (logical 1000x700 space) fitted and centred on the screen. Mirrors canvasDraw.ts. */
+/** Draws the shared canvas across the full display. Mirrors the portrait web canvas. */
 class CanvasRenderer {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val heart = Path()
 
     fun drawScene(c: Canvas, width: Int, height: Int, scene: Scene, live: Collection<LiveItem>) {
         c.drawColor(scene.bg.color)
-        val scale = min(width.toFloat() / W, height.toFloat() / H)
-        val ox = (width - W * scale) / 2f
-        val oy = (height - H * scale) / 2f
         c.save()
-        c.translate(ox, oy)
-        c.scale(scale, scale)
+        c.scale(width.toFloat() / W, height.toFloat() / H)
         drawPattern(c, scene.bg)
         // Eraser strokes use CLEAR, which must only cut the drawing layer, never the background underneath.
         val layer = c.saveLayer(RectF(0f, 0f, W.toFloat(), H.toFloat()), null)

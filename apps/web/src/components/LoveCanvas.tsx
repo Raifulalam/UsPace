@@ -47,6 +47,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [cssW, setCssW] = useState(0);
+  const [cssH, setCssH] = useState(0);
   const [textEdit, setTextEditState] = useState<{ x: number; y: number; sid: string; value: string } | null>(null);
 
   // Hot-path state lives in refs so pointer moves never trigger React renders.
@@ -218,10 +219,12 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
     const layout = () => {
       const wrap = wrapRef.current;
       if (!wrap || !bgEl.current || !drawEl.current || !liveEl.current) return;
-      const w = Math.min(Math.floor(wrap.clientWidth), 1000);
+      const w = Math.min(Math.floor(wrap.clientWidth), Math.floor(window.innerHeight * 9 / 16));
+      const h = Math.floor(w * 16 / 9);
       if (w < 50) return; // hidden tab
-      ctxs.current = { bg: fit(bgEl.current, w), draw: fit(drawEl.current, w), live: fit(liveEl.current, w) };
+      ctxs.current = { bg: fit(bgEl.current, w, h), draw: fit(drawEl.current, w, h), live: fit(liveEl.current, w, h) };
       setCssW(w);
+      setCssH(h);
       dirty.current = { bg: true, scene: true, live: true };
     };
     layout();
@@ -452,7 +455,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
       {err && <p role="alert" className="mb-2 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{err} <button className="underline" onClick={() => setErr(null)}>dismiss</button></p>}
 
       <div ref={wrapRef} className="w-full">
-        <div className="relative mx-auto overflow-hidden rounded-3xl border border-line shadow-soft" style={{ width: cssW || '100%', height: cssW ? (cssW * H) / W : undefined, aspectRatio: cssW ? undefined : `${W} / ${H}` }}>
+        <div className="relative mx-auto overflow-hidden rounded-3xl border border-line shadow-soft" style={{ width: cssW || '100%', height: cssH || undefined, aspectRatio: cssW ? undefined : '9 / 16' }}>
           <canvas ref={bgEl} className="absolute inset-0" aria-hidden />
           <canvas ref={drawEl} className="absolute inset-0" aria-hidden />
           <canvas
@@ -468,7 +471,7 @@ export default function LoveCanvas({ user, e2ee, keyTick, keyVersion, partnerNam
               autoFocus
               aria-label="Type your message on the canvas"
               className="absolute resize-none overflow-hidden border border-dashed border-accent2 bg-transparent p-0 leading-tight outline-none"
-              style={{ left: (textEdit.x / W) * cssW, top: (textEdit.y / H) * ((cssW * H) / W), color, fontSize: (10 + size * 2) * textScale, width: Math.max(120, cssW - (textEdit.x / W) * cssW - 12), height: (10 + size * 2) * textScale * 3.2 }}
+              style={{ left: (textEdit.x / W) * cssW, top: (textEdit.y / H) * cssH, color, fontSize: (10 + size * 2) * textScale, width: Math.max(120, cssW - (textEdit.x / W) * cssW - 12), height: (10 + size * 2) * textScale * 3.2 }}
               value={textEdit.value}
               maxLength={280}
               onChange={(e) => {
