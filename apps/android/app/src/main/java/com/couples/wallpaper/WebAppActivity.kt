@@ -26,6 +26,8 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.app.Activity
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 
 /**
  * Hosts the existing React application. Authentication is shared by copying only the
@@ -38,6 +40,8 @@ class WebAppActivity : Activity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 1001
     private val capabilityRequest = 1002
+
+    private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     private fun webUrl(): String {
         val base = SyncHub.store.baseUrl.trim().trimEnd('/')
@@ -60,15 +64,31 @@ class WebAppActivity : Activity() {
     }
 
     private fun buildUi() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(248, 244, 255))
+        }
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
         errorPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
-            setPadding(40, 40, 40, 40)
+            setPadding(dp(20), dp(24), dp(20), dp(24))
         }
-        val message = TextView(this).apply { text = "Could not load Our Space. Check your connection and server address." }
-        val retry = Button(this).apply { text = "Retry"; setOnClickListener { errorPanel.visibility = View.GONE; webView.reload() } }
+        val message = TextView(this).apply {
+            text = "Could not load Our Space. Check your connection and server address."
+            textSize = 15f
+            setTextColor(Color.rgb(27, 27, 58))
+            setPadding(0, 0, 0, dp(10))
+        }
+        val retry = Button(this).apply {
+            text = "Try again"; isAllCaps = false; textSize = 14f
+            setTextColor(Color.rgb(27, 27, 58))
+            background = GradientDrawable().apply {
+                setColor(Color.TRANSPARENT); setStroke(dp(1), Color.rgb(226, 220, 247))
+                cornerRadius = dp(12).toFloat()
+            }
+            setOnClickListener { errorPanel.visibility = View.GONE; webView.reload() }
+        }
         errorPanel.addView(message)
         errorPanel.addView(retry)
         webView = WebView(this)

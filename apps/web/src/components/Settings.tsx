@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, LockKeyhole, Shield, UserRound, X } from 'lucide-react';
 import { api, ApiError, setToken } from '@/lib/api';
 import { saveBlob } from '@/lib/mediaClient';
 import { useAuth } from '@/lib/session';
@@ -9,7 +9,7 @@ type Session = { id: string; device: string; network: string | null; lastActive:
 const say = (e: unknown) => (e instanceof ApiError ? (Array.isArray(e.details) && e.details.length ? (e.details as { message: string }[]).map((d) => d.message).join(' · ') : e.message) : e instanceof Error ? e.message : 'Something went wrong.');
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
-  return <section className="card mb-4 grid gap-3" aria-labelledby={id}><h3 id={id} className="font-medium">{title}</h3>{children}</section>;
+  return <section className="card mb-4 grid gap-4" aria-labelledby={id}><h3 id={id} className="text-base font-semibold">{title}</h3>{children}</section>;
 }
 function Msg({ err, ok }: { err: string | null; ok: string | null }) {
   return <>{err && <p role="alert" className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{err}</p>}{ok && <p role="status" className="rounded-xl bg-accent2/10 px-3 py-2 text-sm">{ok}</p>}</>;
@@ -28,19 +28,33 @@ function useAction() {
 
 export default function Settings({ onClose, hasPartner }: { onClose: () => void; hasPartner: boolean }) {
   const { logout } = useAuth();
+  const [page, setPage] = useState<'account' | 'privacy' | 'data'>('account');
+  const pages = [
+    { id: 'account' as const, label: 'Account', hint: 'Profile and password', Icon: UserRound },
+    { id: 'privacy' as const, label: 'Privacy & safety', hint: 'Sessions, blocking and reports', Icon: Shield },
+    { id: 'data' as const, label: 'Data', hint: 'Export or delete your account', Icon: LockKeyhole },
+  ];
   return (
-    <aside role="dialog" aria-modal="true" aria-labelledby="set-h" className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto border-l border-line bg-bg p-5 shadow-soft">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 id="set-h" className="text-lg font-semibold">Settings</h2>
+    <>
+      <button type="button" className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px]" aria-label="Close settings" onClick={onClose} />
+      <aside role="dialog" aria-modal="true" aria-labelledby="set-h" className="fixed inset-y-0 right-0 z-40 w-full max-w-lg overflow-y-auto border-l border-line bg-bg p-4 shadow-soft sm:p-6">
+      <div className="mb-5 flex items-start justify-between">
+        <div><h2 id="set-h" className="text-xl font-semibold tracking-tight">Settings</h2><p className="mt-1 text-sm text-muted">Manage your account and private space.</p></div>
         <button className="btn-ghost" aria-label="Close settings" onClick={onClose}><X className="h-4 w-4" /></button>
       </div>
-      <ProfileSection />
-      <PasswordSection />
-      <SessionsSection onSignedOut={logout} />
-      <BlocksSection />
-      <ReportSection hasPartner={hasPartner} />
-      <DataSection onDeleted={logout} />
-    </aside>
+      <nav className="mb-6 grid gap-1 rounded-2xl border border-line bg-surface/50 p-1" aria-label="Settings sections">
+        {pages.map(({ id, label, hint, Icon }) => (
+          <button key={id} type="button" className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${page === id ? 'bg-accent2/10 text-ink' : 'text-muted hover:bg-line/30'}`} aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}>
+            <Icon className={`h-4 w-4 shrink-0 ${page === id ? 'text-accent2' : ''}`} aria-hidden />
+            <span><span className="block text-sm font-medium">{label}</span><span className="block text-xs text-muted">{hint}</span></span>
+          </button>
+        ))}
+      </nav>
+      {page === 'account' && <><ProfileSection /><PasswordSection /></>}
+      {page === 'privacy' && <><SessionsSection onSignedOut={logout} /><BlocksSection /><ReportSection hasPartner={hasPartner} /></>}
+      {page === 'data' && <DataSection onDeleted={logout} />}
+      </aside>
+    </>
   );
 }
 

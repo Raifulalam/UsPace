@@ -24,6 +24,9 @@ body {
 
 body {
   @apply bg-bg text-ink antialiased;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   background-image: radial-gradient(ellipse at 15% -10%, rgb(var(--accent2) / 0.22), transparent 55%),
                     radial-gradient(ellipse at 100% 0%, rgb(var(--accent) / 0.16), transparent 50%);
   background-attachment: fixed;
@@ -33,12 +36,12 @@ body {
 :focus-visible { outline: 2px solid rgb(var(--accent2)); outline-offset: 2px; }
 
 @layer components {
-  .card { @apply rounded-3xl border border-line bg-surface/80 p-5 shadow-soft backdrop-blur; }
-  .input { @apply w-full rounded-2xl border border-line bg-bg/60 px-4 py-3 text-ink placeholder:text-muted/70 focus:border-accent2 focus:outline-none; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .card { @apply rounded-2xl border border-line bg-surface/80 p-4 shadow-soft backdrop-blur sm:p-5; }
+  .input { @apply w-full rounded-xl border border-line bg-bg/60 px-3.5 py-2.5 text-base text-ink placeholder:text-muted/70 focus:border-accent2 focus:outline-none; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply btn bg-gradient-to-r from-accent to-accent2 text-white hover:brightness-110; }
   .btn-ghost { @apply btn border border-line text-ink hover:bg-line/40; }
-  .label { @apply mb-1 block text-sm text-muted; }
+  .label { @apply mb-1 block text-sm font-medium text-muted; }
 }
 
 @keyframes floatUp {

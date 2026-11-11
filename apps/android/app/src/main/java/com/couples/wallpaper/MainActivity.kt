@@ -5,6 +5,8 @@ import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Typeface
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
@@ -39,12 +41,44 @@ class MainActivity : Activity() {
     private var codeView: TextView? = null
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
+    private val ink = Color.rgb(27, 27, 58)
+    private val muted = Color.rgb(104, 104, 146)
+    private val accent = Color.rgb(124, 58, 237)
+    private val surface = Color.rgb(255, 255, 255)
+    private val line = Color.rgb(226, 220, 247)
+    private val page = Color.rgb(248, 244, 255)
+
+    private fun panelBackground(color: Int, radius: Int = 16, stroke: Int? = null) =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+            stroke?.let { setStroke(dp(1), it) }
+        }
+
+    private fun gap(height: Int) = View(this).apply {
+        layoutParams = LinearLayout.LayoutParams(1, dp(height))
+    }
+
+    private fun card(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(18), dp(18), dp(18), dp(18))
+        background = panelBackground(surface, 18, line)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, dp(8), 0, dp(8))
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SyncHub.init(this)
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(32), dp(20), dp(32)) }
-        setContentView(ScrollView(this).apply { addView(root) })
+        root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(28), dp(18), dp(28))
+            setBackgroundColor(page)
+        }
+        window.statusBarColor = page
+        window.navigationBarColor = page
+        setContentView(ScrollView(this).apply { setBackgroundColor(page); addView(root) })
     }
 
     override fun onStart() {
@@ -62,10 +96,32 @@ class MainActivity : Activity() {
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
 
     // ---------- UI building blocks ----------
-    private fun title(t: String) = TextView(this).apply { text = t; textSize = 26f; setTypeface(typeface, Typeface.BOLD); setPadding(0, 0, 0, dp(8)) }
-    private fun body(t: String, size: Float = 15f) = TextView(this).apply { text = t; textSize = size; setPadding(0, dp(6), 0, dp(6)) }
-    private fun field(hint: String, type: Int = InputType.TYPE_CLASS_TEXT, value: String = "") = EditText(this).apply { this.hint = hint; inputType = type; setText(value); setSingleLine() }
-    private fun button(t: String, onClick: () -> Unit) = Button(this).apply { text = t; setOnClickListener { onClick() } }
+    private fun title(t: String) = TextView(this).apply {
+        text = t; textSize = 25f; setTextColor(ink)
+        setTypeface(typeface, Typeface.BOLD); setPadding(0, 0, 0, dp(5))
+    }
+    private fun body(t: String, size: Float = 15f) = TextView(this).apply {
+        text = t; textSize = size; setTextColor(if (size <= 13f) muted else ink)
+        setPadding(0, dp(4), 0, dp(4)); setLineSpacing(1.5f, 1f)
+    }
+    private fun field(hint: String, type: Int = InputType.TYPE_CLASS_TEXT, value: String = "") = EditText(this).apply {
+        this.hint = hint; inputType = type; setText(value); setSingleLine()
+        textSize = 15f; setTextColor(ink); setHintTextColor(muted)
+        setPadding(dp(14), 0, dp(14), 0); background = panelBackground(page, 12, line)
+        layoutParams = LinearLayout.LayoutParams(-1, dp(50)).apply { setMargins(0, dp(4), 0, dp(4)) }
+    }
+    private fun button(t: String, onClick: () -> Unit) = Button(this).apply {
+        text = t; textSize = 14f; isAllCaps = false; setTextColor(ink)
+        minHeight = dp(48); setPadding(dp(14), 0, dp(14), 0)
+        background = panelBackground(Color.TRANSPARENT, 12, line)
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(-1, dp(48)).apply { setMargins(0, dp(4), 0, dp(4)) }
+    }
+
+    private fun primaryButton(t: String, onClick: () -> Unit) = button(t, onClick).apply {
+        setTextColor(Color.WHITE)
+        background = panelBackground(accent, 12)
+    }
 
     private fun humanStatus(): String = when (SyncHub.status) {
         SyncHub.Status.SIGNED_OUT -> "Not signed in."
@@ -91,8 +147,9 @@ class MainActivity : Activity() {
     private fun buildLogin() {
         root.removeAllViews()
         val store = SyncHub.store
-        root.addView(title("Our Space Wallpaper"))
-        root.addView(body(if (registerMode) "Create your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything." else "Sign in with your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything."))
+        root.addView(title("Our Space"))
+        root.addView(body(if (registerMode) "Create your account and connect this phone as an encrypted device." else "Sign in to keep your shared space and live wallpaper connected."))
+        root.addView(gap(8))
         val url = field("Server address", InputType.TYPE_TEXT_VARIATION_URI, store.baseUrl.ifEmpty { "http://10.0.2.2:4000" })
         val id = field("Username or email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
         val username = field("Username (3-24 letters, numbers, _ or .)")
@@ -108,11 +165,11 @@ class MainActivity : Activity() {
         val legal = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             visibility = if (registerMode) View.VISIBLE else View.GONE
-            addView(button("View Terms") { openLegal("/terms") })
-            addView(button("View Privacy") { openLegal("/privacy") })
+            addView(button("Terms") { openLegal("/terms") }, LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(button("Privacy") { openLegal("/privacy") }, LinearLayout.LayoutParams(0, dp(48), 1f))
         }
         val err = body("").apply { setTextColor(0xFFC62828.toInt()) }
-        val go = button(if (registerMode) "Create account" else "Sign in") {}
+        val go = primaryButton(if (registerMode) "Create account" else "Sign in") {}
         val switch = button(if (registerMode) "Already have an account? Sign in" else "New here? Create an account") {
             registerMode = !registerMode
             shownKey = ""
@@ -137,7 +194,9 @@ class MainActivity : Activity() {
                 go.isEnabled = true
             }
         }
-        listOf(url, id, username, email, birthDate, displayName, pw, legal, consent, err, go, switch).forEach { root.addView(it) }
+        val form = card()
+        listOf(url, id, username, email, birthDate, displayName, pw, legal, consent, err, go, switch).forEach { form.addView(it) }
+        root.addView(form)
     }
 
     private fun openLegal(path: String) {
@@ -181,13 +240,16 @@ class MainActivity : Activity() {
     private fun buildMain() {
         root.removeAllViews()
         val store = SyncHub.store
-        root.addView(title("Our Space Wallpaper"))
-        statusView = body("").also { root.addView(it) }
+        root.addView(title("Our Space"))
+        root.addView(body("Live wallpaper", 13f))
+        val statusCard = card()
+        statusView = body("").also { statusCard.addView(it) }
+        root.addView(statusCard)
         codeView = TextView(this).apply {
             textSize = 24f; gravity = Gravity.CENTER; typeface = Typeface.MONOSPACE
             setPadding(0, dp(12), 0, dp(12)); visibility = View.GONE
         }.also { root.addView(it) }
-        root.addView(button("Set as live wallpaper") { chooseWallpaper() })
+        root.addView(primaryButton("Set as live wallpaper") { chooseWallpaper() })
         root.addView(button("Open Our Space") { startActivity(Intent(this, WebAppActivity::class.java)) })
         val sw = Switch(this).apply {
             text = "Hide the drawing while my phone is locked"
@@ -195,8 +257,10 @@ class MainActivity : Activity() {
             setPadding(0, dp(16), 0, dp(8))
             setOnCheckedChangeListener { _, on -> store.hideWhenLocked = on }
         }
-        root.addView(sw)
-        root.addView(body("With this on (recommended), the lock screen shows a plain heart instead of your partner’s drawing, so nobody nearby can see it. It is shown again once you unlock.", 13f))
+        val privacyCard = card()
+        privacyCard.addView(sw)
+        privacyCard.addView(body("When enabled, the lock screen shows a plain heart instead of your partner’s drawing. Your private canvas returns after you unlock.", 13f))
+        root.addView(privacyCard)
         root.addView(button("Sign out and forget this phone") { signOut() })
         root.addView(body("Also remove “Android live wallpaper” from Security → Devices in Our Space, so your partner’s devices stop sharing new keys with it.", 13f))
     }
