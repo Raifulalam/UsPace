@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Clock, Heart, Lock, Mic, Paperclip, Pin, Search, Send, Smile, Square, X } from 'lucide-react';
+import { Clock, Heart, Lock, Mic, MoreVertical, Paperclip, Pin, Search, Send, Smile, Square, X } from 'lucide-react';
 import { matchesQuery, mediaIdsOf, memoryTypeFor, validateMemoryPayload, type Descriptor } from '@couples/media-core';
 import { STICKERS, TTL_OPTIONS, groupByDay, lastSeenMessageId } from '@couples/space-core';
 import { api, ApiError, tryRefresh } from '@/lib/api';
@@ -9,6 +9,7 @@ import type { E2EE } from '@/lib/e2ee';
 import type { ChatMessage, Couple, ReadState, User, WireMessage, WireReaction } from '@/lib/types';
 import { MediaError, friendly, prepareFile, startRecording, type Recording } from '@/lib/mediaClient';
 import MessageBubble, { type ReactionChip } from './MessageBubble';
+import { CallCard, RoomSettings } from './Home';
 
 type Kind = 'text' | 'heart' | 'sticker';
 type Pending = { clientMsgId: string; kind: Kind; text: string | null; sticker?: string; replyTo?: string; createdAt: string; failed: boolean };
@@ -34,6 +35,7 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, visible,
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [query, setQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [panel, setPanel] = useState<null | 'stickers' | 'timer' | 'pins'>(null);
   const [conn, setConn] = useState<'connecting' | 'online' | 'offline'>('connecting');
   const [partnerTyping, setPartnerTyping] = useState(false);
@@ -309,8 +311,22 @@ export default function Chat({ user, couple, e2ee, keyTick, keyVersion, visible,
           {pinnedMsgs.length > 0 && <button className="btn-ghost px-2 py-1" aria-label={`${pinnedMsgs.length} pinned messages`} onClick={() => setPanel(panel === 'pins' ? null : 'pins')}><Pin className="h-3.5 w-3.5" aria-hidden />{pinnedMsgs.length}</button>}
           <button className={`btn-ghost px-2 py-1 ${couple.messageTtlSec ? 'border-accent2' : ''}`} aria-label={`Disappearing messages: ${ttlLabel}`} onClick={() => setPanel(panel === 'timer' ? null : 'timer')}><Clock className="h-3.5 w-3.5" aria-hidden />{couple.messageTtlSec ? ttlLabel : ''}</button>
           <button className="btn-ghost px-2 py-1" aria-label="Search messages" aria-pressed={showSearch} onClick={() => { setShowSearch((v) => !v); setQuery(''); }}><Search className="h-3.5 w-3.5" /></button>
+          <button className="btn-ghost px-2 py-1" aria-label="More chat options" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}><MoreVertical className="h-3.5 w-3.5" /></button>
         </div>
       </div>
+
+      <CallCard partnerName={partnerName} visible={visible} />
+      {showMore && (
+        <div className="grid gap-3" role="menu" aria-label="Chat options">
+          <section className="card" aria-labelledby="h-act">
+            <h3 id="h-act" className="mb-2 font-medium">Recent activity</h3>
+            {messages.length === 0 ? <p className="text-sm text-muted">No conversation activity yet.</p> : (
+              <ul className="grid gap-1.5">{messages.slice(-5).reverse().map((m) => <li key={m.id ?? m.clientMsgId} className="flex justify-between gap-3 text-sm"><span className="truncate">{m.senderId === user.id ? 'You' : partnerName}: {snippet(m)}</span><span className="shrink-0 text-xs text-muted">{formatRelative(Date.parse(m.createdAt), nowTick)}</span></li>)}</ul>
+            )}
+          </section>
+          <RoomSettings couple={couple} onSaved={onCoupleChanged} />
+        </div>
+      )}
 
       {showSearch && (
         <div className="mb-2 flex items-center gap-2">

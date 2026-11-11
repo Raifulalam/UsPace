@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.WallpaperManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -21,6 +23,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -34,6 +37,35 @@ import android.graphics.drawable.GradientDrawable
  * httpOnly refresh cookie into WebView's cookie store; access tokens never cross the boundary.
  */
 class WebAppActivity : Activity() {
+    private inner class AndroidBridge {
+        @JavascriptInterface
+        fun openLiveWallpaper() {
+            runOnUiThread {
+                val component = ComponentName(this@WebAppActivity, LoveWallpaperService::class.java)
+                try {
+                    startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component))
+                } catch (_: Exception) {
+                    startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun openLiveWallpaperPicker() {
+            runOnUiThread {
+                startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+            }
+        }
+
+        @JavascriptInterface
+        fun isHideWhenLocked(): Boolean = SyncHub.store.hideWhenLocked
+
+        @JavascriptInterface
+        fun setHideWhenLocked(hide: Boolean) {
+            SyncHub.store.hideWhenLocked = hide
+        }
+    }
+
     private lateinit var webView: WebView
     private lateinit var progress: ProgressBar
     private lateinit var errorPanel: LinearLayout
@@ -44,9 +76,7 @@ class WebAppActivity : Activity() {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     private fun webUrl(): String {
-        val base = SyncHub.store.baseUrl.trim().trimEnd('/')
-        val configured = intent.getStringExtra(EXTRA_WEB_URL)
-        return configured?.takeIf { it.isNotBlank() } ?: base.replace(Regex(":4000$"), ":3000")
+        return Store.DEFAULT_WEB_BASE
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +93,11 @@ class WebAppActivity : Activity() {
         webView.loadUrl(webUrl())
     }
 
+    override fun onPause() {
+        persistWebRefreshCookie()
+        super.onPause()
+    }
+
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -75,7 +110,7 @@ class WebAppActivity : Activity() {
             setPadding(dp(20), dp(24), dp(20), dp(24))
         }
         val message = TextView(this).apply {
-            text = "Could not load Our Space. Check your connection and server address."
+            text = "Could not load Our Space. Check your connection."
             textSize = 15f
             setTextColor(Color.rgb(27, 27, 58))
             setPadding(0, 0, 0, dp(10))
@@ -96,6 +131,7 @@ class WebAppActivity : Activity() {
         root.addView(errorPanel, LinearLayout.LayoutParams(-1, -2))
         root.addView(webView, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+        webView.addJavascriptInterface(AndroidBridge(), "OurSpaceAndroid")
     }
 
     private fun configureWebView() {
@@ -111,6 +147,7 @@ class WebAppActivity : Activity() {
             userAgentString = "$userAgentString OurSpaceAndroid"
         }
         CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = Uri.parse(webUrl()).host
@@ -208,8 +245,20 @@ class WebAppActivity : Activity() {
     private fun transferRefreshCookie() {
         val cookie = SyncHub.store.refreshCookie ?: return
         val base = SyncHub.store.baseUrl.trim().trimEnd('/')
-        CookieManager.getInstance().setCookie(base, "rt=$cookie; Path=/api/v1/auth; HttpOnly; SameSite=Strict")
+        CookieManager.getInstance().setCookie(base, "rt=$cookie; Path=/api/v1/auth; Secure; HttpOnly; SameSite=None")
         CookieManager.getInstance().flush()
+    }
+
+    private fun persistWebRefreshCookie() {
+        val base = SyncHub.store.baseUrl.trim().trimEnd('/')
+        val cookie = CookieManager.getInstance().getCookie(base)
+            ?.split(';')
+            ?.firstOrNull { it.trim().startsWith("rt=") }
+            ?.substringAfter('=')
+            ?.takeIf { it.isNotBlank() }
+        if (cookie != null) {
+            SyncHub.store.refreshCookie = cookie
+        }
     }
 
     private fun prepareNotifications() {
@@ -241,13 +290,11 @@ class WebAppActivity : Activity() {
     }
 
     override fun onDestroy() {
+        persistWebRefreshCookie()
         fileCallback?.onReceiveValue(null)
         fileCallback = null
         webView.destroy()
         super.onDestroy()
     }
 
-    companion object {
-        const val EXTRA_WEB_URL = "webUrl"
-    }
 }

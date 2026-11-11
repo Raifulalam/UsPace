@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private var ticker: Job? = null
     private var shownKey = ""
     private var registerMode = false
+    private var handedOffToApp = false
     private var statusView: TextView? = null
     private var codeView: TextView? = null
 
@@ -71,6 +72,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SyncHub.init(this)
+        if (SyncHub.store.hasSession()) {
+            openOurSpace()
+            return
+        }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(28), dp(18), dp(28))
@@ -83,6 +88,7 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        if (handedOffToApp) return
         SyncHub.acquire(this) // keep the sync running while this screen is visible so status is live
         ticker = scope.launch { while (isActive) { render(); delay(1000) } }
     }
@@ -150,7 +156,6 @@ class MainActivity : Activity() {
         root.addView(title("Our Space"))
         root.addView(body(if (registerMode) "Create your account and connect this phone as an encrypted device." else "Sign in to keep your shared space and live wallpaper connected."))
         root.addView(gap(8))
-        val url = field("Server address", InputType.TYPE_TEXT_VARIATION_URI, store.baseUrl.ifEmpty { "http://10.0.2.2:4000" })
         val id = field("Username or email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
         val username = field("Username (3-24 letters, numbers, _ or .)")
         val email = field("Email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
@@ -186,44 +191,53 @@ class MainActivity : Activity() {
             scope.launch {
                 try {
                     if (registerMode && !consent.isChecked) throw IllegalArgumentException("Please accept the Terms of Service and Privacy Policy.")
-                    if (registerMode) signUp(url.text.toString(), username.text.toString(), email.text.toString(), birthDate.text.toString(), displayName.text.toString(), pw.text.toString())
-                    else signIn(url.text.toString(), id.text.toString(), pw.text.toString())
+                    if (registerMode) signUp(username.text.toString(), email.text.toString(), birthDate.text.toString(), displayName.text.toString(), pw.text.toString())
+                    else signIn(id.text.toString(), pw.text.toString())
                 }
-                catch (e: ApiException) { err.text = if (e.status == 401) "Incorrect username or password." else "Server said: ${e.code}" }
+                catch (e: ApiException) {
+                    err.text = when {
+                        e.status == 401 -> "Incorrect username or password."
+                        e.code == "TOO_MANY_DEVICES" -> "You already have 10 active devices. Remove an old device in Security > Devices, then try again."
+                        else -> "Server said: ${e.code}"
+                    }
+                }
                 catch (e: Exception) { err.text = e.message ?: "Could not reach the server. Check the address and your connection." }
                 go.isEnabled = true
             }
         }
         val form = card()
-        listOf(url, id, username, email, birthDate, displayName, pw, legal, consent, err, go, switch).forEach { form.addView(it) }
+        listOf(id, username, email, birthDate, displayName, pw, legal, consent, err, go, switch).forEach { form.addView(it) }
         root.addView(form)
     }
 
     private fun openLegal(path: String) {
-        val base = SyncHub.store.baseUrl.trim().trimEnd('/').replace(Regex(":4000$"), ":3000")
-        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("$base$path")))
+        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("${Store.DEFAULT_WEB_BASE}$path")))
     }
 
-    private suspend fun signIn(url: String, identifier: String, password: String) {
+    private suspend fun signIn(identifier: String, password: String) {
         val store = SyncHub.store
-        store.baseUrl = url.trim()
         val d = SyncHub.api.login(identifier.trim(), password)
         val newId = d.getJSONObject("user").getString("id")
         if (store.userId != null && store.userId != newId) store.clearDevice() // a different person: never reuse the old identity
         store.userId = newId
         ensureDevice()
         SyncHub.restart()
-        shownKey = "" // force the screen to rebuild
+        openOurSpace()
     }
 
-    private suspend fun signUp(url: String, username: String, email: String, birthDate: String, displayName: String, password: String) {
+    private suspend fun signUp(username: String, email: String, birthDate: String, displayName: String, password: String) {
         val store = SyncHub.store
-        store.baseUrl = url.trim()
         val d = SyncHub.api.register(username.trim(), email.trim(), password, birthDate.trim(), displayName)
         store.userId = d.getJSONObject("user").getString("id")
         ensureDevice()
         SyncHub.restart()
-        shownKey = ""
+        openOurSpace()
+    }
+
+    private fun openOurSpace() {
+        handedOffToApp = true
+        startActivity(Intent(this, WebAppActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        finish()
     }
 
     private suspend fun ensureDevice() {

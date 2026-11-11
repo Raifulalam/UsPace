@@ -23,17 +23,17 @@ decrypts drawing operations **on the phone**, and draws them. The server never s
 
 ## Build and run
 1. Install Android Studio (Hedgehog or newer, JDK 17). Open the `apps/android` folder; accept the Gradle sync.
-2. Start the API (`apps/api`, `npm run dev`) and web app (`apps/web`, `npm run dev`).
-3. Emulator: use server address `http://10.0.2.2:4000`, browse to `http://10.0.2.2:3000`,
-   and set `ADDITIONAL_CLIENT_ORIGINS=http://10.0.2.2:3000` in the API `.env`.
-   Real phone: use your PC's LAN address for both services, e.g. `http://192.168.1.20:4000`
-   and `http://192.168.1.20:3000`; allow both ports in Windows Firewall and use the same Wi-Fi.
-   Debug builds allow `http`; release builds require `https`.
+2. The release app uses the deployed API and web app automatically. For local development, temporarily configure the API base in the Android source before running.
+3. Debug builds may use `http` for local development; release builds require `https`.
 4. Run the app, sign in or create an account. Tap **Open Our Space** for the full React experience.
 5. In Our Space (web, on a device that already works) a banner appears: *New device "Android live wallpaper (...)"*.
    Check that the **code matches**, then tap **Approve**. The phone's status turns to "Connected".
 6. Tap **Set as live wallpaper** and confirm in Android's picker.
-7. Open the Live Canvas on the web in another window and draw; the wallpaper updates.
+7. Open Settings -> Live wallpaper in Our Space. Use **Set wallpaper now** for the direct Android flow, or **Choose home or lock screen** to select the home screen, lock screen, or both.
+8. Open the Live Canvas on the web in another window and draw; the wallpaper updates. The live wallpaper settings also let you show a plain heart instead of the drawing while the phone is locked.
+
+The account supports up to 10 active devices. Reinstalling or clearing app data creates a new encrypted
+device identity; remove unused entries from **Our Space -> Security -> Devices** before registering another phone.
 
 Unit tests (JVM): `./gradlew test`. They run the same shared cases as `packages/canvas-core` (JavaScript) so the two ports cannot drift.
 

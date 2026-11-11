@@ -11,6 +11,11 @@ import org.json.JSONObject
  * whose key is held by the Android Keystore. Nothing here is ever logged.
  */
 class Store(context: Context) {
+    companion object {
+        const val DEFAULT_API_BASE = "https://uspace-ubq2.onrender.com"
+        const val DEFAULT_WEB_BASE = "https://wespc.vercel.app"
+    }
+
     private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         "couples_secure",
         MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
@@ -22,9 +27,8 @@ class Store(context: Context) {
     private fun str(k: String) = prefs.getString(k, null)
     private fun put(k: String, v: String?) { prefs.edit().apply { if (v == null) remove(k) else putString(k, v) }.apply() }
 
-    var baseUrl: String
-        get() = str("baseUrl") ?: ""
-        set(v) = put("baseUrl", v)
+    val baseUrl: String
+        get() = DEFAULT_API_BASE
     var refreshCookie: String?
         get() = str("rt")
         set(v) = put("rt", v)
@@ -45,7 +49,7 @@ class Store(context: Context) {
         get() = prefs.getBoolean("hideWhenLocked", true)
         set(v) { prefs.edit().putBoolean("hideWhenLocked", v).apply() }
 
-    fun hasSession() = !refreshCookie.isNullOrEmpty() && !deviceId.isNullOrEmpty() && !baseUrl.isEmpty()
+    fun hasSession() = !refreshCookie.isNullOrEmpty() && !deviceId.isNullOrEmpty()
 
     @Synchronized fun roomKeys(): Map<Int, String> {
         val o = JSONObject(str("roomKeys") ?: "{}")

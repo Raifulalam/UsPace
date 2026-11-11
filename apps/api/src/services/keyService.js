@@ -14,7 +14,7 @@ const deviceView = (d, me) => ({ id: d.id, userId: String(d.userId), publicKey: 
 
 async function registerDevice(user, { publicKey, label }) {
   if ((await Device.countDocuments({ userId: user._id, revokedAt: null })) >= MAX_DEVICES) {
-    throw new AppError(429, 'TOO_MANY_DEVICES', 'Remove a device first');
+    throw new AppError(429, 'TOO_MANY_DEVICES', `You have reached the limit of ${MAX_DEVICES} active devices. Remove a device first`);
   }
   try {
     const device = await Device.create({ userId: user._id, publicKey, label });

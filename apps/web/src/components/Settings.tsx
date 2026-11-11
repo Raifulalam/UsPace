@@ -6,6 +6,16 @@ import { saveBlob } from '@/lib/mediaClient';
 import { useAuth } from '@/lib/session';
 
 type Session = { id: string; device: string; network: string | null; lastActive: string; current: boolean };
+declare global {
+  interface Window {
+    OurSpaceAndroid?: {
+      openLiveWallpaper: () => void;
+      openLiveWallpaperPicker: () => void;
+      isHideWhenLocked: () => boolean;
+      setHideWhenLocked: (hide: boolean) => void;
+    };
+  }
+}
 const say = (e: unknown) => (e instanceof ApiError ? (Array.isArray(e.details) && e.details.length ? (e.details as { message: string }[]).map((d) => d.message).join(' · ') : e.message) : e instanceof Error ? e.message : 'Something went wrong.');
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
@@ -34,6 +44,7 @@ export default function Settings({ onClose, hasPartner }: { onClose: () => void;
     { id: 'privacy' as const, label: 'Privacy & safety', hint: 'Sessions, blocking and reports', Icon: Shield },
     { id: 'data' as const, label: 'Data', hint: 'Export or delete your account', Icon: LockKeyhole },
   ];
+  const isAndroidApp = typeof navigator !== 'undefined' && navigator.userAgent.includes('OurSpaceAndroid');
   return (
     <>
       <button type="button" className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px]" aria-label="Close settings" onClick={onClose} />
@@ -51,10 +62,34 @@ export default function Settings({ onClose, hasPartner }: { onClose: () => void;
         ))}
       </nav>
       {page === 'account' && <><ProfileSection /><PasswordSection /></>}
+      {page === 'account' && isAndroidApp && <LiveWallpaperSection />}
       {page === 'privacy' && <><SessionsSection onSignedOut={logout} /><BlocksSection /><ReportSection hasPartner={hasPartner} /></>}
       {page === 'data' && <DataSection onDeleted={logout} />}
       </aside>
     </>
+  );
+}
+
+function LiveWallpaperSection() {
+  const [hideWhenLocked, setHideWhenLocked] = useState(() => window.OurSpaceAndroid?.isHideWhenLocked() ?? true);
+  return (
+    <Section id="s-wallpaper" title="Live wallpaper">
+      <p className="text-sm text-muted">Show your shared space canvas as your phone wallpaper. The drawing stays encrypted and is rendered on this phone.</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button className="btn-primary" onClick={() => window.OurSpaceAndroid?.openLiveWallpaper()}>Set wallpaper now</button>
+        <button className="btn-ghost" onClick={() => window.OurSpaceAndroid?.openLiveWallpaperPicker()}>Choose home or lock screen</button>
+      </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={hideWhenLocked}
+          onChange={(e) => { setHideWhenLocked(e.target.checked); window.OurSpaceAndroid?.setHideWhenLocked(e.target.checked); }}
+        />
+        <span>Hide the drawing while my phone is locked<br /><span className="text-xs text-muted">The lock screen shows a plain heart instead.</span></span>
+      </label>
+      <p className="text-xs text-muted">Android’s picker lets you choose the home screen, lock screen, or both. If the direct button does not show that choice, use the picker.</p>
+    </Section>
   );
 }
 
