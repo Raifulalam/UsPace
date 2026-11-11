@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "453845015135",
+    "project_id": "ourspace-4cbb1",
+    "storage_bucket": "ourspace-4cbb1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453845015135:android:cea9637e38fb59bc0bd9ea",
+        "android_client_info": {
+          "package_name": "com.couples.wallpaper"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeleYzQcgyYHMCVAwH4nCkAcmLreJJr6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

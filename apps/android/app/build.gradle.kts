@@ -1,7 +1,12 @@
+
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
+
+
 
 android {
     namespace = "com.couples.wallpaper"
@@ -42,4 +47,6 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+implementation("com.google.firebase:firebase-messaging")
 }
