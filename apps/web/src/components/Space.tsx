@@ -98,7 +98,13 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
       if (await x.bootstrap(s, memberIds.current)) { s = await x.sync(); setRk(await x.createRecovery()); setHasBackup(true); }
       setState(s);
       setKeyTick((t) => t + 1);
-    } catch { setErr('Could not sync encryption keys. Retrying…'); }
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.code === 'UNAUTHENTICATED')) {
+        setErr(null);
+      } else {
+        setErr('Could not sync encryption keys. Retrying…');
+      }
+    }
     finally { syncing.current = false; }
   }, []);
 

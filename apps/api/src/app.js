@@ -11,10 +11,11 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 function createApp() {
   const app = express();
+  const origins = [config.CLIENT_ORIGIN, config.ADMIN_ORIGIN, ...config.ADDITIONAL_CLIENT_ORIGINS];
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // behind one reverse proxy/load balancer
   app.use(helmet());
-  app.use(cors({ origin: [config.CLIENT_ORIGIN, config.ADMIN_ORIGIN], credentials: true, exposedHeaders: ['Content-Length'] }));
+  app.use(cors({ origin: origins, credentials: true, exposedHeaders: ['Content-Length'] }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
   app.use(generalLimiter);

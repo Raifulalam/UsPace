@@ -30,6 +30,8 @@ const registerSchema = z.object({
   password,
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
   displayName: z.string().trim().min(1).max(50).optional(),
+  termsAccepted: z.literal(true).optional(),
+  privacyAccepted: z.literal(true).optional(),
 }).strict();
 const loginSchema = z.object({ identifier: z.string().min(1).max(254), password: z.string().min(1).max(200) }).strict();
 const verifySchema = z.object({ token: z.string().min(10).max(200) }).strict();

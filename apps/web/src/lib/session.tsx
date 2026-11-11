@@ -4,7 +4,7 @@ import { api, setToken, tryRefresh } from './api';
 import type { User } from './types';
 
 type Status = 'loading' | 'anon' | 'authed';
-type RegisterInput = { username: string; email: string; password: string; birthDate: string; displayName?: string };
+type RegisterInput = { username: string; email: string; password: string; birthDate: string; displayName?: string; termsAccepted: true; privacyAccepted: true };
 type Ctx = {
   user: User | null; status: Status;
   login: (identifier: string, password: string) => Promise<void>;
@@ -20,8 +20,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    tryRefresh().then((u) => { if (alive) { setUser(u); setStatus(u ? 'authed' : 'anon'); } });
-    return () => { alive = false; };
+    const handleAuthLost = () => {
+      if (alive) { setToken(null); setUser(null); setStatus('anon'); }
+    };
+    window.addEventListener('couples-auth-lost', handleAuthLost);
+    const bootstrap = async () => {
+      let user = await tryRefresh();
+      if (!user) {
+        await new Promise((resolve) => setTimeout(resolve, 750));
+        user = await tryRefresh();
+      }
+      if (alive) { setUser(user); setStatus(user ? 'authed' : 'anon'); }
+    };
+    void bootstrap();
+    return () => { alive = false; window.removeEventListener('couples-auth-lost', handleAuthLost); };
   }, []);
 
   const finish = useCallback((r: { user: User; accessToken: string }) => { setToken(r.accessToken); setUser(r.user); setStatus('authed'); }, []);

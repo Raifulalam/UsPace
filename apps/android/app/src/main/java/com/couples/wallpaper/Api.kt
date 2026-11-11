@@ -49,6 +49,20 @@ class Api(private val store: Store) {
         return d
     }
 
+    suspend fun register(username: String, email: String, password: String, birthDate: String, displayName: String?): JSONObject {
+        val body = JSONObject()
+            .put("username", username)
+            .put("email", email)
+            .put("password", password)
+            .put("birthDate", birthDate)
+            .put("termsAccepted", true)
+            .put("privacyAccepted", true)
+        if (!displayName.isNullOrBlank()) body.put("displayName", displayName.trim())
+        val d = raw("POST", "/auth/register", body, false)
+        accessToken = d.getString("accessToken")
+        return d
+    }
+
     /** Rotates the session. Returns false if the session is gone (user must sign in again). */
     suspend fun refresh(): Boolean = refreshLock.withLock {
         try {

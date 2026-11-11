@@ -26,6 +26,8 @@ const userSchema = new mongoose.Schema(
     failedLoginCount: { type: Number, default: 0 },
     lockUntil: Date,
     lastLoginAt: Date,
+    termsAcceptedAt: Date,
+    privacyAcceptedAt: Date,
   },
   { timestamps: true }
 );

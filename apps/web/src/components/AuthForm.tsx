@@ -16,7 +16,7 @@ function explain(e: unknown): string {
 export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { login, register, status } = useAuth();
   const router = useRouter();
-  const [f, setF] = useState({ identifier: '', username: '', email: '', password: '', birthDate: '', displayName: '' });
+  const [f, setF] = useState({ identifier: '', username: '', email: '', password: '', birthDate: '', displayName: '', termsAccepted: false, privacyAccepted: false });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }));
@@ -29,7 +29,9 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true);
     try {
       if (mode === 'login') await login(f.identifier, f.password);
-      else await register({ username: f.username, email: f.email, password: f.password, birthDate: f.birthDate, ...(f.displayName.trim() ? { displayName: f.displayName.trim() } : {}) });
+      else if (!f.termsAccepted || !f.privacyAccepted) {
+        setErr('You must accept the Terms of Service and Privacy Policy.');
+      } else await register({ username: f.username, email: f.email, password: f.password, birthDate: f.birthDate, ...(f.displayName.trim() ? { displayName: f.displayName.trim() } : {}), termsAccepted: true, privacyAccepted: true });
     } catch (x) {
       setErr(explain(x));
     } finally {
@@ -62,12 +64,21 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         )}
         <div><label className="label" htmlFor="password">Password{mode === 'register' ? ' (10+ characters)' : ''}</label>
           <input id="password" type="password" className="input" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'register' ? 10 : 1} value={f.password} onChange={set('password')} /></div>
+        {mode === 'register' && <div className="grid gap-2 text-sm text-muted">
+          <label><input type="checkbox" className="mr-2" checked={f.termsAccepted} onChange={(e) => setF((p) => ({ ...p, termsAccepted: e.target.checked }))} required />
+            I agree to the <Link className="text-accent2 underline" href="/terms" target="_blank">Terms of Service</Link>.
+          </label>
+          <label><input type="checkbox" className="mr-2" checked={f.privacyAccepted} onChange={(e) => setF((p) => ({ ...p, privacyAccepted: e.target.checked }))} required />
+            I have read the <Link className="text-accent2 underline" href="/privacy" target="_blank">Privacy Policy</Link>.
+          </label>
+        </div>}
         {err && <p role="alert" className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{err}</p>}
         <button className="btn-primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}</button>
       </form>
       <p className="text-center text-sm text-muted">
         {mode === 'login' && <><Link className="text-accent2 underline" href="/forgot">Forgot your password?</Link> · <Link className="text-accent2 underline" href="/restore">Restore a deleted account</Link><br /></>}
         {mode === 'login' ? <>New here? <Link className="text-accent2 underline" href="/register">Create an account</Link></> : <>Already have an account? <Link className="text-accent2 underline" href="/login">Log in</Link></>}
+        <br /><Link className="text-accent2 underline" href="/terms">Terms</Link> · <Link className="text-accent2 underline" href="/privacy">Privacy</Link>
       </p>
     </main>
   );

@@ -49,6 +49,7 @@ async function register(input, ctx) {
       passwordHash: await bcrypt.hash(input.password, config.BCRYPT_COST),
       emailVerifyTokenHash: sha256(verifyToken),
       emailVerifyExpiresAt: new Date(Date.now() + 24 * 3600000),
+      ...(input.termsAccepted && input.privacyAccepted ? { termsAcceptedAt: new Date(), privacyAcceptedAt: new Date() } : {}),
     });
   } catch (e) {
     if (e.code === 11000) {

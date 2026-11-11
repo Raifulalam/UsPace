@@ -11,11 +11,13 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.webkit.CookieManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,6 +34,7 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private var ticker: Job? = null
     private var shownKey = ""
+    private var registerMode = false
     private var statusView: TextView? = null
     private var codeView: TextView? = null
 
@@ -89,22 +92,57 @@ class MainActivity : Activity() {
         root.removeAllViews()
         val store = SyncHub.store
         root.addView(title("Our Space Wallpaper"))
-        root.addView(body("Sign in with your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything."))
+        root.addView(body(if (registerMode) "Create your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything." else "Sign in with your Our Space account. This phone becomes one more encrypted device; your partner approves it before it can see anything."))
         val url = field("Server address", InputType.TYPE_TEXT_VARIATION_URI, store.baseUrl.ifEmpty { "http://10.0.2.2:4000" })
         val id = field("Username or email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        val username = field("Username (3-24 letters, numbers, _ or .)")
+        val email = field("Email", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        val birthDate = field("Date of birth (YYYY-MM-DD)")
+        val displayName = field("Display name (optional)")
         val pw = field("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        val consent = CheckBox(this).apply {
+            text = "I agree to the Terms of Service and Privacy Policy"
+            isChecked = false
+            visibility = if (registerMode) View.VISIBLE else View.GONE
+        }
+        val legal = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            visibility = if (registerMode) View.VISIBLE else View.GONE
+            addView(button("View Terms") { openLegal("/terms") })
+            addView(button("View Privacy") { openLegal("/privacy") })
+        }
         val err = body("").apply { setTextColor(0xFFC62828.toInt()) }
-        val go = button("Sign in") {}
+        val go = button(if (registerMode) "Create account" else "Sign in") {}
+        val switch = button(if (registerMode) "Already have an account? Sign in" else "New here? Create an account") {
+            registerMode = !registerMode
+            shownKey = ""
+        }
+        id.visibility = if (registerMode) View.GONE else View.VISIBLE
+        username.visibility = if (registerMode) View.VISIBLE else View.GONE
+        email.visibility = if (registerMode) View.VISIBLE else View.GONE
+        birthDate.visibility = if (registerMode) View.VISIBLE else View.GONE
+        displayName.visibility = if (registerMode) View.VISIBLE else View.GONE
+        consent.visibility = if (registerMode) View.VISIBLE else View.GONE
+        legal.visibility = if (registerMode) View.VISIBLE else View.GONE
         go.setOnClickListener {
             go.isEnabled = false; err.text = ""
             scope.launch {
-                try { signIn(url.text.toString(), id.text.toString(), pw.text.toString()) }
+                try {
+                    if (registerMode && !consent.isChecked) throw IllegalArgumentException("Please accept the Terms of Service and Privacy Policy.")
+                    if (registerMode) signUp(url.text.toString(), username.text.toString(), email.text.toString(), birthDate.text.toString(), displayName.text.toString(), pw.text.toString())
+                    else signIn(url.text.toString(), id.text.toString(), pw.text.toString())
+                }
                 catch (e: ApiException) { err.text = if (e.status == 401) "Incorrect username or password." else "Server said: ${e.code}" }
-                catch (e: Exception) { err.text = "Could not reach the server. Check the address and your connection." }
+                catch (e: Exception) { err.text = e.message ?: "Could not reach the server. Check the address and your connection." }
                 go.isEnabled = true
             }
         }
-        listOf(url, id, pw, err, go).forEach { root.addView(it) }
+        listOf(url, id, username, email, birthDate, displayName, pw, legal, consent, err, go, switch).forEach { root.addView(it) }
+    }
+
+    private fun openLegal(path: String) {
+        val base = SyncHub.store.baseUrl.trim().trimEnd('/').replace(Regex(":4000$"), ":3000")
+        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("$base$path")))
     }
 
     private suspend fun signIn(url: String, identifier: String, password: String) {
@@ -117,6 +155,16 @@ class MainActivity : Activity() {
         ensureDevice()
         SyncHub.restart()
         shownKey = "" // force the screen to rebuild
+    }
+
+    private suspend fun signUp(url: String, username: String, email: String, birthDate: String, displayName: String, password: String) {
+        val store = SyncHub.store
+        store.baseUrl = url.trim()
+        val d = SyncHub.api.register(username.trim(), email.trim(), password, birthDate.trim(), displayName)
+        store.userId = d.getJSONObject("user").getString("id")
+        ensureDevice()
+        SyncHub.restart()
+        shownKey = ""
     }
 
     private suspend fun ensureDevice() {
@@ -140,6 +188,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(12), 0, dp(12)); visibility = View.GONE
         }.also { root.addView(it) }
         root.addView(button("Set as live wallpaper") { chooseWallpaper() })
+        root.addView(button("Open Our Space") { startActivity(Intent(this, WebAppActivity::class.java)) })
         val sw = Switch(this).apply {
             text = "Hide the drawing while my phone is locked"
             isChecked = store.hideWhenLocked
@@ -165,6 +214,8 @@ class MainActivity : Activity() {
         scope.launch {
             SyncHub.store.clear()
             SyncHub.api.forget()
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
             SyncHub.restart()
             shownKey = ""
         }

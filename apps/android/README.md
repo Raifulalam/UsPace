@@ -1,4 +1,10 @@
-# Our Space Wallpaper (Android live wallpaper)
+# Our Space Android app
+
+The app uses a hybrid architecture. Kotlin handles login/signup, encrypted device registration,
+session storage, device approval status, wallpaper setup, Android permissions, downloads, and
+navigation. The existing React app is hosted in a hardened WebView for chat, canvas, memories,
+media, calls, and settings. Only the refresh cookie is transferred to WebView; the React access
+token remains in memory and is never exposed through a JavaScript bridge.
 
 Shows the couple's newest canvas as a **live wallpaper**: when your partner draws, strokes appear on this phone as they are drawn.
 Android only (iOS does not allow third-party live wallpapers).
@@ -17,11 +23,13 @@ decrypts drawing operations **on the phone**, and draws them. The server never s
 
 ## Build and run
 1. Install Android Studio (Hedgehog or newer, JDK 17). Open the `apps/android` folder; accept the Gradle sync.
-2. Start the API (`apps/api`, `npm run dev`).
-3. Emulator: server address `http://10.0.2.2:4000` (the emulator's name for your PC).
-   Real phone: use your PC's LAN address, e.g. `http://192.168.1.20:4000`; allow port 4000 in Windows Firewall; phone and PC on the same Wi-Fi.
+2. Start the API (`apps/api`, `npm run dev`) and web app (`apps/web`, `npm run dev`).
+3. Emulator: use server address `http://10.0.2.2:4000`, browse to `http://10.0.2.2:3000`,
+   and set `ADDITIONAL_CLIENT_ORIGINS=http://10.0.2.2:3000` in the API `.env`.
+   Real phone: use your PC's LAN address for both services, e.g. `http://192.168.1.20:4000`
+   and `http://192.168.1.20:3000`; allow both ports in Windows Firewall and use the same Wi-Fi.
    Debug builds allow `http`; release builds require `https`.
-4. Run the app, sign in. It shows **"Waiting for approval"** and a 6-group code.
+4. Run the app, sign in or create an account. Tap **Open Our Space** for the full React experience.
 5. In Our Space (web, on a device that already works) a banner appears: *New device "Android live wallpaper (...)"*.
    Check that the **code matches**, then tap **Approve**. The phone's status turns to "Connected".
 6. Tap **Set as live wallpaper** and confirm in Android's picker.
@@ -29,7 +37,8 @@ decrypts drawing operations **on the phone**, and draws them. The server never s
 
 Unit tests (JVM): `./gradlew test`. They run the same shared cases as `packages/canvas-core` (JavaScript) so the two ports cannot drift.
 
-## Status: NOT yet compiled or run
+## Status
+The hybrid shell is implemented but should be compiled and exercised on an emulator/device before release.
 Written without access to an Android SDK. Expect small fixes on first build. The most API-sensitive parts, in order:
 1. `Crypto.kt` - calls the C-style libsodium functions of lazysodium's `SodiumAndroid` (`crypto_box_open_easy`, `crypto_aead_xchacha20poly1305_ietf_decrypt`, `crypto_generichash`). If a signature differs, only this file changes.
 2. `SyncHub.kt` - uses `IO.Options.builder()...setAuth(...)` from `socket.io-client:2.1.0`.
