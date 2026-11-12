@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -161,10 +160,10 @@ class NativeCanvasActivity : ComponentActivity() {
                         }
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (loading) Text("Loading canvases…")
+                    if (loading) Text("Loading canvasesâ€¦")
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(canvases, key = { it.first }) { canvas ->
-                            Text(canvas.second + if (canvas.first == selectedCanvasId) " · Selected" else "", style = MaterialTheme.typography.bodyMedium)
+                            Text(canvas.second + if (canvas.first == selectedCanvasId) " Â· Selected" else "", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

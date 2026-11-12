@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.Manifest
 import android.os.Bundle
@@ -7,19 +7,20 @@ import android.media.MediaRecorder
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -84,7 +85,7 @@ class NativeChatActivity : ComponentActivity() {
                         onClick = model::loadOlder,
                         enabled = !state.loadingOlder && state.messages.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(if (state.loadingOlder) "Loading older messages…" else "Load older messages") }
+                    ) { Text(if (state.loadingOlder) "Loading older messagesâ€¦" else "Load older messages") }
                     LazyColumn(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -129,7 +130,7 @@ class NativeChatActivity : ComponentActivity() {
                                 }
                                 val count = state.reactions.count { it.messageId == message.id }
                                 Button(onClick = { model.toggleHeart(message.id) }) {
-                                    Text("❤️ ${if (count > 0) count else ""}")
+                                    Text("â¤ï¸ ${if (count > 0) count else ""}")
                                 }
                             }
                         }
@@ -192,7 +193,7 @@ class NativeChatActivity : ComponentActivity() {
             return
         }
         recording.value = true
-        recordingLimitJob = lifecycleScope.launchWhenStarted {
+        recordingLimitJob = lifecycleScope.launch {
             delay(MAX_VOICE_DURATION_MS)
             if (recording.value) stopVoiceRecording()
         }

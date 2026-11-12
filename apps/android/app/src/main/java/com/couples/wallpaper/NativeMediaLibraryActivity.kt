@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.content.Intent
 import android.net.Uri
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
@@ -115,14 +114,14 @@ class NativeMediaLibraryActivity : ComponentActivity() {
                         }
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (loading) Text("Loading encrypted media…")
+                    if (loading) Text("Loading encrypted mediaâ€¦")
                     if (!loading && shown.isEmpty()) Text("No media matches this filter.")
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(shown, key = { it.descriptor.id }) { item ->
                             Card(Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(item.label, style = MaterialTheme.typography.titleMedium)
-                                    Text("${item.descriptor.mime} · ${item.date}", style = MaterialTheme.typography.bodySmall)
+                                    Text("${item.descriptor.mime} Â· ${item.date}", style = MaterialTheme.typography.bodySmall)
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = {
                                             startActivity(Intent(this@NativeMediaLibraryActivity, NativeMediaPreviewActivity::class.java)

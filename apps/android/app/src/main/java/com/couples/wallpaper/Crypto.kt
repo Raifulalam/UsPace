@@ -6,6 +6,23 @@ import com.goterl.lazysodium.interfaces.SecretStream
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
+internal object Iso7816Padding {
+    fun pad(bytes: ByteArray): ByteArray {
+        val total = ((bytes.size + 1 + 127) / 128) * 128
+        return ByteArray(total).also { out ->
+            bytes.copyInto(out)
+            out[bytes.size] = 0x80.toByte()
+        }
+    }
+
+    fun unpad(bytes: ByteArray): ByteArray? {
+        var i = bytes.size - 1
+        while (i >= 0 && bytes[i] == 0.toByte()) i--
+        if (i < 0 || bytes[i] != 0x80.toByte()) return null
+        return bytes.copyOf(i)
+    }
+}
+
 /**
  * All libsodium use is isolated here and mirrors packages/crypto (JavaScript) exactly:
  *  - device identity: X25519 keypair (crypto_box)
@@ -226,12 +243,10 @@ object Crypto {
         return null
     }
 
-    internal fun unpad(b: ByteArray): ByteArray? {
-        var i = b.size - 1
-        while (i >= 0 && b[i] == 0.toByte()) i--
-        if (i < 0 || b[i] != 0x80.toByte()) return null
-        return b.copyOf(i)
-    }
+    /** ISO/IEC 7816-4 padding shared with packages/crypto (128-byte blocks). */
+    internal fun pad(bytes: ByteArray): ByteArray = Iso7816Padding.pad(bytes)
+
+    internal fun unpad(b: ByteArray): ByteArray? = Iso7816Padding.unpad(b)
 
     fun opAad(coupleId: String, canvasId: String, senderId: String, clientOpId: String, keyVersion: Int) =
         "couples-canvas-op-v1|$coupleId|$canvasId|$senderId|$clientOpId|$keyVersion"

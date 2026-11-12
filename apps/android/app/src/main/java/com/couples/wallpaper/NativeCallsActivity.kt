@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,10 +7,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -29,6 +30,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -89,9 +91,11 @@ class NativeCallsActivity : ComponentActivity() {
         setContent {
             val model: NativeCallsViewModel = viewModel()
             val state by model.state.collectAsState()
+            val videoCall by NativeCallSession.videoCall.collectAsState()
+            val cameraEnabled by NativeCallSession.cameraEnabled.collectAsState()
             var requestedCallType by remember { mutableStateOf("audio") }
             val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-                if (grants[Manifest.permission.RECORD_AUDIO] == true && requestedCallType == "accept") NativeCallSession.accept(this@NativeCallsActivity)
+                if (grants[Manifest.permission.RECORD_AUDIO] == true && requestedCallType == "accept" && (!NativeCallSession.videoCall.value || grants[Manifest.permission.CAMERA] == true)) NativeCallSession.accept(this@NativeCallsActivity)
                 else if (grants[Manifest.permission.RECORD_AUDIO] == true && requestedCallType == "audio") NativeCallSession.start(this@NativeCallsActivity, "audio")
                 else if (requestedCallType == "video" && grants[Manifest.permission.RECORD_AUDIO] == true && grants[Manifest.permission.CAMERA] == true) NativeCallSession.start(this@NativeCallsActivity, "video")
             }
@@ -113,27 +117,46 @@ class NativeCallsActivity : ComponentActivity() {
                     NativeCallSession.status.collectAsState().value.let { callStatus ->
                         if (callStatus != "Idle") {
                             Text(callStatus)
+                            if (videoCall) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    AndroidView(
+                                        factory = { context -> org.webrtc.SurfaceViewRenderer(context).also(NativeCallSession::attachLocalRenderer) },
+                                        modifier = Modifier.weight(1f).height(180.dp),
+                                        onRelease = NativeCallSession::detachLocalRenderer,
+                                    )
+                                    AndroidView(
+                                        factory = { context -> org.webrtc.SurfaceViewRenderer(context).also(NativeCallSession::attachRemoteRenderer) },
+                                        modifier = Modifier.weight(1f).height(180.dp),
+                                        onRelease = NativeCallSession::detachRemoteRenderer,
+                                    )
+                                }
+                            }
                             if (callStatus.startsWith("Incoming")) {
                                 OutlinedButton(onClick = {
                                     requestedCallType = "accept"
-                                    if (ContextCompat.checkSelfPermission(this@NativeCallsActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) NativeCallSession.accept(this@NativeCallsActivity)
-                                    else permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-                                }) { Text("Answer voice call") }
+                                    val permissions = if (videoCall) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA) else arrayOf(Manifest.permission.RECORD_AUDIO)
+                                    if (permissions.all { ContextCompat.checkSelfPermission(this@NativeCallsActivity, it) == PackageManager.PERMISSION_GRANTED }) NativeCallSession.accept(this@NativeCallsActivity)
+                                    else permissionLauncher.launch(permissions)
+                                }) { Text(if (videoCall) "Answer video call" else "Answer voice call") }
                                 OutlinedButton(onClick = { NativeCallSession.rejectIncoming() }) { Text("Decline") }
                             }
                             if (callStatus.startsWith("Connected")) OutlinedButton(onClick = { NativeCallSession.toggleMute() }) {
                                 Text(if (NativeCallSession.muted) "Unmute microphone" else "Mute microphone")
                             }
+                            if (videoCall && callStatus.startsWith("Connected")) {
+                                OutlinedButton(onClick = { NativeCallSession.toggleCamera() }) { Text(if (cameraEnabled) "Turn camera off" else "Turn camera on") }
+                                OutlinedButton(onClick = { NativeCallSession.switchCamera() }) { Text("Switch camera") }
+                            }
                             OutlinedButton(onClick = { NativeCallSession.hangup() }) { Text("End call") }
                         }
                     }
                     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (state.loading) Text("Loading call history…")
+                    if (state.loading) Text("Loading call historyâ€¦")
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(state.calls, key = { it.id }) { call ->
                             Card(Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(16.dp)) {
-                                Text("${call.type.replaceFirstChar { it.uppercase() }} · ${call.status} · ${call.createdAt}")
+                                Text("${call.type.replaceFirstChar { it.uppercase() }} Â· ${call.status} Â· ${call.createdAt}")
                                 }
                             }
                         }

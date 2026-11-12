@@ -25,7 +25,7 @@ object NativeMediaUploader {
         val plain = resolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error("Could not read the selected media.")
         require(plain.isNotEmpty()) { "The selected media is empty." }
-        uploadBytes(plain, kind, mime)
+        uploadBytes(plain, kind, mime.ifBlank { resolver.getType(uri) ?: "application/octet-stream" })
     }
 
     suspend fun uploadBytes(
@@ -50,7 +50,7 @@ object NativeMediaUploader {
         NativeMediaDescriptor(
             id = id,
             key = Crypto.b64(key),
-            mime = mime.ifBlank { resolver.mimeType(uri) ?: "application/octet-stream" },
+            mime = mime.ifBlank { "application/octet-stream" },
             size = plain.size,
         )
     }
@@ -68,8 +68,6 @@ object NativeMediaUploader {
         require(decrypted.size == descriptor.size) { "Downloaded media size does not match its descriptor." }
         decrypted
     }
-
-    private fun ContentResolver.mimeType(uri: Uri): String? = getType(uri)
 
     fun descriptorJson(descriptor: NativeMediaDescriptor): JSONObject =
         JSONObject()

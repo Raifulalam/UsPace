@@ -12,26 +12,50 @@ import io.socket.client.Socket
 import org.json.JSONObject
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
+import org.webrtc.Camera1Enumerator
+import org.webrtc.Camera2Enumerator
+import org.webrtc.CameraEnumerator
+import org.webrtc.CameraVideoCapturer
+import org.webrtc.DefaultVideoDecoderFactory
+import org.webrtc.DefaultVideoEncoderFactory
+import org.webrtc.EglBase
+import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import org.webrtc.SurfaceTextureHelper
+import org.webrtc.SurfaceViewRenderer
+import org.webrtc.VideoSource
+import org.webrtc.VideoTrack
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
-/** Native one-to-one audio call. SDP and ICE are encrypted with the same room-key envelope as web calls. */
+/** Native one-to-one audio/video calls. SDP and ICE use the same room-key envelope as web calls. */
 object NativeCallSession {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _status = kotlinx.coroutines.flow.MutableStateFlow("Idle")
     val status = _status
+    private val _videoCall = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val videoCall = _videoCall
+    private val _cameraEnabled = kotlinx.coroutines.flow.MutableStateFlow(true)
+    val cameraEnabled = _cameraEnabled
     @Volatile var active = false
         private set
     private var socket: Socket? = null
     private var pc: PeerConnection? = null
     private var factory: PeerConnectionFactory? = null
+    private var eglBase: EglBase? = null
+    private var videoCapturer: CameraVideoCapturer? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var videoSource: VideoSource? = null
+    private var localVideoTrack: VideoTrack? = null
+    private var remoteVideoTrack: VideoTrack? = null
+    private var localRenderer: SurfaceViewRenderer? = null
+    private var remoteRenderer: SurfaceViewRenderer? = null
     private var audioSource: AudioSource? = null
     private var audioTrack: AudioTrack? = null
     private var callId: String? = null
@@ -41,14 +65,14 @@ object NativeCallSession {
     @Volatile var muted = false
         private set
     private var incomingId: String? = null
-    private val queuedIce = mutableListOf<PeerConnection.IceCandidate>()
+    private val queuedIce = mutableListOf<IceCandidate>()
 
     fun listen(context: Context) { scope.launch { runCatching { ensureSocket(context.applicationContext) } } }
 
     fun start(context: Context, type: String) {
         if (active) return
-        if (type == "video") { _status.value = "Video calling needs camera preview support and is not ready yet. Use voice call."; return }
         active = true
+        _videoCall.value = type == "video"
         _status.value = "Preparing secure call…"
         scope.launch {
             try {
@@ -85,13 +109,9 @@ object NativeCallSession {
             s.on("call:incoming") { args ->
                 val m = args.firstOrNull() as? JSONObject ?: return@on
                 if (active) { s.emit("call:reject", JSONObject().put("callId", m.optString("callId")), Ack { }); return@on }
-                if (m.optString("type", "audio") == "video") {
-                    s.emit("call:reject", JSONObject().put("callId", m.optString("callId")), Ack { })
-                    _status.value = "Your partner tried a video call. Android video calling is not ready yet."
-                    return@on
-                }
                 incomingId = m.optString("callId")
                 callId = incomingId
+                _videoCall.value = m.optString("type", "audio") == "video"
                 active = true
                 _status.value = "Incoming ${m.optString("type", "audio")} call"
             }
@@ -116,7 +136,7 @@ object NativeCallSession {
         if (incomingId == null) return
         scope.launch {
             try {
-                setupPeer("audio", context.applicationContext)
+                setupPeer(if (_videoCall.value) "video" else "audio", context.applicationContext)
                 val ack = emitAck("call:answer", JSONObject().put("callId", incomingId))
                 check(ack?.optBoolean("ok") == true) { "Could not answer this call." }
                 _status.value = "Connecting…"
@@ -135,6 +155,14 @@ object NativeCallSession {
         track.setEnabled(!muted)
         _status.value = if (muted) "Connected · microphone muted" else "Connected"
     }
+
+    fun toggleCamera() {
+        val track = localVideoTrack ?: return
+        _cameraEnabled.value = !track.enabled()
+        track.setEnabled(_cameraEnabled.value)
+    }
+
+    fun switchCamera() { videoCapturer?.switchCamera(null) }
 
     fun close() {
         if (active) hangup()
@@ -162,7 +190,14 @@ object NativeCallSession {
             PeerConnection.IceServer.builder(urls).setUsername(item.optString("username")).setPassword(item.optString("credential")).createIceServer()
         }
         PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions())
-        factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
+        if (eglBase == null) eglBase = EglBase.create()
+        val peerFactoryBuilder = PeerConnectionFactory.builder()
+        if (type == "video") {
+            peerFactoryBuilder
+                .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase!!.eglBaseContext, true, true))
+                .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase!!.eglBaseContext))
+        }
+        factory = peerFactoryBuilder.createPeerConnectionFactory()
         val constraints = MediaConstraints()
         audioSource = factory!!.createAudioSource(constraints)
         audioTrack = factory!!.createAudioTrack("ourspace-audio", audioSource)
@@ -182,20 +217,87 @@ object NativeCallSession {
             }
             override fun onIceConnectionReceivingChange(receiving: Boolean) = Unit
             override fun onIceGatheringChange(s: PeerConnection.IceGatheringState?) = Unit
-            override fun onIceCandidate(c: PeerConnection.IceCandidate?) { c?.let { sendSignal(JSONObject().put("t", "ice").put("candidate", JSONObject().put("candidate", it.sdp).put("sdpMid", it.sdpMid).put("sdpMLineIndex", it.sdpMLineIndex))) } }
-            override fun onIceCandidatesRemoved(c: Array<out PeerConnection.IceCandidate>?) = Unit
-            override fun onAddStream(stream: org.webrtc.MediaStream?) = Unit
+            override fun onIceCandidate(candidate: IceCandidate?) {
+                candidate?.let { iceCandidate: IceCandidate ->
+                    sendSignal(JSONObject().put("t", "ice").put("candidate", JSONObject()
+                        .put("candidate", iceCandidate.sdp)
+                        .put("sdpMid", iceCandidate.sdpMid)
+                        .put("sdpMLineIndex", iceCandidate.sdpMLineIndex)))
+                }
+            }
+            override fun onIceCandidatesRemoved(candidates: Array<IceCandidate>?) {
+                candidates?.forEach { candidate: IceCandidate -> queuedIce.remove(candidate) }
+            }
+            override fun onAddStream(stream: org.webrtc.MediaStream?) {
+                stream?.videoTracks?.firstOrNull()?.let { track ->
+                    remoteVideoTrack?.removeSink(remoteRenderer)
+                    remoteVideoTrack = track
+                    remoteRenderer?.let(track::addSink)
+                }
+            }
             override fun onRemoveStream(stream: org.webrtc.MediaStream?) = Unit
             override fun onDataChannel(channel: org.webrtc.DataChannel?) = Unit
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: org.webrtc.RtpReceiver?, streams: Array<out org.webrtc.MediaStream>?) = Unit
-            override fun onTrack(transceiver: org.webrtc.RtpTransceiver?) = Unit
+            override fun onTrack(transceiver: org.webrtc.RtpTransceiver?) {
+                (transceiver?.receiver?.track() as? VideoTrack)?.let { track ->
+                    remoteVideoTrack?.removeSink(remoteRenderer)
+                    remoteVideoTrack = track
+                    remoteRenderer?.let(track::addSink)
+                }
+            }
             override fun onConnectionChange(s: PeerConnection.PeerConnectionState?) = Unit
             override fun onStandardizedIceConnectionChange(s: PeerConnection.IceConnectionState?) = Unit
             override fun onSelectedCandidatePairChanged(event: org.webrtc.CandidatePairChangeEvent?) = Unit
         }) ?: error("Could not create secure call connection.")
         pc!!.addTrack(audioTrack, listOf("ourspace-audio"))
-        if (type == "video") throw IllegalStateException("Video calling is not available in this Android build yet. Choose voice call.")
+        if (type == "video") {
+            val enumerator: CameraEnumerator = if (Camera2Enumerator.isSupported(context)) Camera2Enumerator(context) else Camera1Enumerator(true)
+            val cameraName = enumerator.deviceNames.firstOrNull(enumerator::isFrontFacing) ?: enumerator.deviceNames.firstOrNull()
+                ?: error("No camera is available for video calling.")
+            videoCapturer = enumerator.createCapturer(cameraName, null) ?: error("Could not open the camera.")
+            videoSource = factory!!.createVideoSource(videoCapturer!!.isScreencast)
+            val textureHelper = SurfaceTextureHelper.create("OurSpaceCamera", eglBase!!.eglBaseContext)
+            surfaceTextureHelper = textureHelper
+            videoCapturer!!.initialize(textureHelper, context, videoSource!!.capturerObserver)
+            videoCapturer!!.startCapture(1280, 720, 30)
+            localVideoTrack = factory!!.createVideoTrack("ourspace-video", videoSource)
+            localRenderer?.let(localVideoTrack!!::addSink)
+            pc!!.addTrack(localVideoTrack, listOf("ourspace-video"))
+        }
+    }
+
+    fun attachLocalRenderer(view: SurfaceViewRenderer) {
+        detachLocalRenderer(localRenderer)
+        if (eglBase == null) eglBase = EglBase.create()
+        view.init(eglBase!!.eglBaseContext, null)
+        view.setMirror(true)
+        view.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+        localRenderer = view
+        localVideoTrack?.addSink(view)
+    }
+
+    fun detachLocalRenderer(view: SurfaceViewRenderer?) {
+        if (view == null) return
+        localVideoTrack?.removeSink(view)
+        if (localRenderer === view) localRenderer = null
+        view.release()
+    }
+
+    fun attachRemoteRenderer(view: SurfaceViewRenderer) {
+        detachRemoteRenderer(remoteRenderer)
+        if (eglBase == null) eglBase = EglBase.create()
+        view.init(eglBase!!.eglBaseContext, null)
+        view.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+        remoteRenderer = view
+        remoteVideoTrack?.addSink(view)
+    }
+
+    fun detachRemoteRenderer(view: SurfaceViewRenderer?) {
+        if (view == null) return
+        remoteVideoTrack?.removeSink(view)
+        if (remoteRenderer === view) remoteRenderer = null
+        view.release()
     }
 
     private suspend fun makeOffer() {
@@ -225,7 +327,7 @@ object NativeCallSession {
                 "answer" -> setRemote(description(true, payload.getString("sdp")))
                 "ice" -> {
                     val c = payload.getJSONObject("candidate")
-                    val ice = PeerConnection.IceCandidate(c.optString("sdpMid"), c.optInt("sdpMLineIndex"), c.getString("candidate"))
+                    val ice = IceCandidate(c.optString("sdpMid"), c.optInt("sdpMLineIndex"), c.getString("candidate"))
                     if (connected) pc?.addIceCandidate(ice) else queuedIce.add(ice)
                 }
             }
@@ -279,10 +381,21 @@ object NativeCallSession {
         runCatching { pc?.close() }; pc = null
         audioTrack?.dispose(); audioTrack = null
         audioSource?.dispose(); audioSource = null
+        runCatching { videoCapturer?.stopCapture() }
+        videoCapturer?.dispose(); videoCapturer = null
+        localVideoTrack?.let { track -> localRenderer?.let(track::removeSink) }
+        remoteVideoTrack?.let { track -> remoteRenderer?.let(track::removeSink) }
+        localVideoTrack?.dispose(); localVideoTrack = null
+        remoteVideoTrack = null
+        videoSource?.dispose(); videoSource = null
+        surfaceTextureHelper?.dispose(); surfaceTextureHelper = null
         factory?.dispose(); factory = null
+        eglBase?.release(); eglBase = null
         // Keep the authenticated socket alive while the Calls screen is open so another incoming call can ring.
         callId = null; connected = false; queuedIce.clear()
         incomingId = null
         muted = false
+        _videoCall.value = false
+        _cameraEnabled.value = true
     }
 }

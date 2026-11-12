@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.content.Intent
 import android.os.Bundle
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -118,7 +117,7 @@ class NativeAccountActivity : ComponentActivity() {
                     Text("Account & security", style = MaterialTheme.typography.headlineMedium)
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     note?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-                    if (loading) Text("Loading security…") else {
+                    if (loading) Text("Loading securityâ€¦") else {
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Profile", style = MaterialTheme.typography.titleMedium)
@@ -168,8 +167,8 @@ class NativeAccountActivity : ComponentActivity() {
                                 sessions.forEach { s ->
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Column(Modifier.weight(1f)) {
-                                            Text(s.device + if (s.current) " · This device" else "")
-                                            Text("${s.network} · ${s.lastActive}", style = MaterialTheme.typography.bodySmall)
+                                            Text(s.device + if (s.current) " Â· This device" else "")
+                                            Text("${s.network} Â· ${s.lastActive}", style = MaterialTheme.typography.bodySmall)
                                         }
                                         if (!s.current) TextButton(onClick = { sessionToRemove = s }) { Text("Revoke") }
                                     }
@@ -272,7 +271,7 @@ class NativeAccountActivity : ComponentActivity() {
                             SyncHub.api.put("/keys/envelopes", JSONObject().put("senderDeviceId", senderDeviceId).put("envelopes", envelopes))
                             load()
                         }
-                    }) { Text("I verified the code · Approve") } },
+                    }) { Text("I verified the code Â· Approve") } },
                     dismissButton = { TextButton(onClick = { deviceToApprove = null }) { Text("Cancel") } },
                 )
             }

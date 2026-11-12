@@ -73,62 +73,50 @@ class NativeChatViewModel : ViewModel() {
                 _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not load messages.")
             }
 
-            fun connectRealtime(coupleId: String) {
-                if (socket?.connected() == true) return
-                viewModelScope.launch {
-                    if (!SyncHub.api.refresh()) return@launch
-                    val token = SyncHub.api.accessToken ?: return@launch
-                    val options = IO.Options.builder()
-                        .setReconnection(true)
-                        .setTransports(arrayOf("websocket"))
-                        .setAuth(mapOf("token" to token))
-                        .build()
-                    val connection = IO.socket(SyncHub.store.baseUrl.trimEnd('/'), options)
-                    socket = connection
-                    connection.on(Socket.EVENT_CONNECT) {
-                        connection.emit("couple:join", Ack { _ -> })
-                    }
-                    connection.on("message:new") { args ->
-                        val message = args.firstOrNull() as? JSONObject
-                        if (message != null) {
-                            decryptMessage(message, coupleId)?.let { decrypted ->
-                                _state.value = _state.value.copy(
-                                    messages = (_state.value.messages + decrypted).distinctBy { it.id }.sortedBy { it.createdAt },
-                                )
-                            }
-                        }
-                    }
-                    connection.on("keys:updated") {
-                        load()
-                    }
-                    connection.on("message:read") { args ->
-                        val read = args.firstOrNull() as? JSONObject
-                        if (read != null) {
-                            val userId = read.optString("userId")
-                            if (userId != SyncHub.store.userId) {
-                                _state.value = _state.value.copy(partnerReadUpTo = read.optString("upTo").takeIf { it.isNotBlank() })
-                            }
-                        }
-                    }
-                    connection.on("message:reaction") { args ->
-                        val reaction = args.firstOrNull() as? JSONObject
-                        if (reaction != null) {
-                            val messageId = reaction.optString("messageId")
-                            val userId = reaction.optString("userId")
-                            val existing = _state.value.reactions.filterNot { it.messageId == messageId && it.userId == userId }
-                            if (reaction.optBoolean("removed")) {
-                                _state.value = _state.value.copy(reactions = existing)
-                            } else {
-                                decryptReaction(reaction, coupleId)?.let {
-                                    _state.value = _state.value.copy(reactions = existing + it)
-                                }
-                            }
-                        }
-                    }
-                    connection.connect()
+        }
+    }
+
+    private fun connectRealtime(coupleId: String) {
+        if (socket?.connected() == true) return
+        viewModelScope.launch {
+            if (!SyncHub.api.refresh()) return@launch
+            val token = SyncHub.api.accessToken ?: return@launch
+            val options = IO.Options.builder()
+                .setReconnection(true)
+                .setTransports(arrayOf("websocket"))
+                .setAuth(mapOf("token" to token))
+                .build()
+            val connection = IO.socket(SyncHub.store.baseUrl.trimEnd('/'), options)
+            socket = connection
+            connection.on(Socket.EVENT_CONNECT) {
+                connection.emit("couple:join", Ack { _ -> })
+            }
+            connection.on("message:new") { args ->
+                val message = args.firstOrNull() as? JSONObject
+                if (message != null) decryptMessage(message, coupleId)?.let { decrypted ->
+                    _state.value = _state.value.copy(
+                        messages = (_state.value.messages + decrypted).distinctBy { it.id }.sortedBy { it.createdAt },
+                    )
                 }
             }
-
+            connection.on("keys:updated") { load() }
+            connection.on("message:read") { args ->
+                val read = args.firstOrNull() as? JSONObject
+                if (read != null && read.optString("userId") != SyncHub.store.userId) {
+                    _state.value = _state.value.copy(partnerReadUpTo = read.optString("upTo").takeIf { it.isNotBlank() })
+                }
+            }
+            connection.on("message:reaction") { args ->
+                val reaction = args.firstOrNull() as? JSONObject
+                if (reaction != null) {
+                    val messageId = reaction.optString("messageId")
+                    val userId = reaction.optString("userId")
+                    val existing = _state.value.reactions.filterNot { it.messageId == messageId && it.userId == userId }
+                    if (reaction.optBoolean("removed")) _state.value = _state.value.copy(reactions = existing)
+                    else decryptReaction(reaction, coupleId)?.let { _state.value = _state.value.copy(reactions = existing + it) }
+                }
+            }
+            connection.connect()
         }
     }
 

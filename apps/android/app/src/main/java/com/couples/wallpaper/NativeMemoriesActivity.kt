@@ -1,4 +1,4 @@
-package com.couples.wallpaper
+﻿package com.couples.wallpaper
 
 import android.net.Uri
 import android.os.Bundle
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -83,7 +82,6 @@ class NativeMemoriesActivity : ComponentActivity() {
                 val room = SyncHub.api.get("/couples/me").getJSONObject("couple")
                 coupleId = room.getString("id")
                 keyVersion = room.getInt("keyVersion")
-                val version = keyVersion!!
                 loadRoomKeys()
                 val albumItems = SyncHub.api.get("/memories/albums").getJSONArray("albums")
                 albums = (0 until albumItems.length()).mapNotNull { i ->
@@ -109,8 +107,8 @@ class NativeMemoriesActivity : ComponentActivity() {
                     val payload = raw?.let { runCatching { JSONObject(it) }.getOrNull() }
                     val media = payload?.optJSONArray("media")?.let { arr ->
                         if (arr.length() > 4) return@let emptyList()
-                        (0 until arr.length()).mapNotNull { mi ->
-                            val d = arr.optJSONObject(mi) ?: return@mapNotNull null
+                        (0 until arr.length()).mapNotNull mediaItem@{ mi ->
+                            val d = arr.optJSONObject(mi) ?: return@mediaItem null
                             val id = d.optString("id")
                             val key = d.optString("key")
                             val mime = d.optString("mime")
@@ -166,7 +164,7 @@ class NativeMemoriesActivity : ComponentActivity() {
                 Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Our Memories", style = MaterialTheme.typography.headlineMedium)
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (loading) Text("Loading memories…") else {
+                    if (loading) Text("Loading memoriesâ€¦") else {
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Add a memory", style = MaterialTheme.typography.titleMedium)
@@ -261,14 +259,14 @@ class NativeMemoriesActivity : ComponentActivity() {
                                         }.onFailure { error = it.message ?: "Could not save memory." }
                                         busy = false
                                     }
-                                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save memory") }
+                                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Savingâ€¦" else "Save memory") }
                             }
                         }
                         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(rows, key = { it.id }) { memory ->
                                 Card(Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text("${memory.type.replaceFirstChar { it.uppercase() }} · ${memory.date}", style = MaterialTheme.typography.labelMedium)
+                                        Text("${memory.type.replaceFirstChar { it.uppercase() }} Â· ${memory.date}", style = MaterialTheme.typography.labelMedium)
                                         memory.albumId?.let { id -> Text("Album: ${albums.firstOrNull { it.id == id }?.name ?: "Saved album"}", style = MaterialTheme.typography.labelSmall) }
                                         Text(memory.title ?: "Memory", style = MaterialTheme.typography.titleMedium)
                                         memory.text?.let { Text(it) }
@@ -294,7 +292,7 @@ class NativeMemoriesActivity : ComponentActivity() {
                                                         load()
                                                     }.onFailure { error = it.message ?: "Could not update favorite." }
                                                 }
-                                            }) { Text(if (memory.favorite) "★ Saved" else "☆ Favorite") }
+                                            }) { Text(if (memory.favorite) "â˜… Saved" else "â˜† Favorite") }
                                             val moveTarget = if (memory.albumId == selectedAlbumId) null else selectedAlbumId
                                             if (selectedAlbumId != null || memory.albumId != null) OutlinedButton(onClick = {
                                                 scope.launch {

@@ -173,7 +173,7 @@ private fun NativeAuthScreen(onAuthenticated: () -> Unit) {
                     OutlinedButton(onClick = { resetMode = true; error = null }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("I have a reset token") }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Button(onClick = ::submit, enabled = !busy, Modifier.fillMaxWidth()) {
+                Button(onClick = ::submit, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                     Text(if (busy) "Please wait…" else when { forgotMode -> "Send reset email"; resetMode -> "Reset password"; registerMode -> "Create account"; else -> "Sign in" })
                 }
                 OutlinedButton(
