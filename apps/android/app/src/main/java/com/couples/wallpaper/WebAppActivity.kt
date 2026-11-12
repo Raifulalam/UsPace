@@ -244,14 +244,14 @@ class WebAppActivity : Activity() {
 
     private fun transferRefreshCookie() {
         val cookie = SyncHub.store.refreshCookie ?: return
-        val base = SyncHub.store.baseUrl.trim().trimEnd('/')
-        CookieManager.getInstance().setCookie(base, "rt=$cookie; Path=/api/v1/auth; Secure; HttpOnly; SameSite=None")
+        val apiBase = SyncHub.store.baseUrl.trim().trimEnd('/')
+        CookieManager.getInstance().setCookie(apiBase, "rt=$cookie; Path=/api/v1/auth; Secure; HttpOnly; SameSite=None")
         CookieManager.getInstance().flush()
     }
 
     private fun persistWebRefreshCookie() {
-        val base = SyncHub.store.baseUrl.trim().trimEnd('/')
-        val cookie = CookieManager.getInstance().getCookie(base)
+        val apiBase = SyncHub.store.baseUrl.trim().trimEnd('/')
+        val cookie = CookieManager.getInstance().getCookie("$apiBase/api/v1/auth")
             ?.split(';')
             ?.firstOrNull { it.trim().startsWith("rt=") }
             ?.substringAfter('=')
