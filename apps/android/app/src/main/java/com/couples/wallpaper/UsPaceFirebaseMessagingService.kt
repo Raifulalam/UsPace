@@ -26,7 +26,7 @@ class UsPaceFirebaseMessagingService : FirebaseMessagingService() {
         if (!SyncHub.store.markNotificationIfNew(eventId)) return
         val destination = message.data["notificationDestination"] ?: "/space?view=chat"
         val body = when (type) {
-            "new_message" -> "You received a new message."
+            "new_message" -> "You have a new message"
             "incoming_call" -> "Your partner is calling."
             "invitation" -> "You have a new couple invitation."
             "device_change" -> "Your shared space devices changed."
@@ -36,9 +36,7 @@ class UsPaceFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         createChannel()
-        val tapIntent = Intent(this, WebAppActivity::class.java)
-            .putExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION, destination)
-            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val tapIntent = NativeDestination.intent(this, destination)
         val pendingIntent = PendingIntent.getActivity(
             this,
             eventId.hashCode(),

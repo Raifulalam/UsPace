@@ -72,11 +72,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SyncHub.init(this)
-        if (SyncHub.store.hasSession()) {
-            scope.launch { PushRegistration.registerCurrentToken() }
-            openOurSpace(intent.getStringExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION))
-            return
-        }
+        if (SyncHub.store.hasSession()) scope.launch { PushRegistration.registerCurrentToken() }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(28), dp(18), dp(28))
@@ -91,6 +87,7 @@ class MainActivity : Activity() {
         super.onStart()
         if (handedOffToApp) return
         SyncHub.acquire(this) // keep the sync running while this screen is visible so status is live
+        render()
         ticker = scope.launch { while (isActive) { render(); delay(1000) } }
     }
 
@@ -237,11 +234,10 @@ class MainActivity : Activity() {
         openOurSpace()
     }
 
-    private fun openOurSpace(destination: String? = null) {
+    private fun openOurSpace() {
         handedOffToApp = true
-        val next = Intent(this, WebAppActivity::class.java)
+        val next = NativeDestination.intent(this, null)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        if (!destination.isNullOrBlank()) next.putExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION, destination)
         startActivity(next)
         finish()
     }
@@ -270,7 +266,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(12), 0, dp(12)); visibility = View.GONE
         }.also { root.addView(it) }
         root.addView(primaryButton("Set as live wallpaper") { chooseWallpaper() })
-        root.addView(button("Open Our Space") { startActivity(Intent(this, WebAppActivity::class.java)) })
+        root.addView(button("Open Our Space") { startActivity(NativeDestination.intent(this, null)) })
         val sw = Switch(this).apply {
             text = "Hide the drawing while my phone is locked"
             isChecked = store.hideWhenLocked

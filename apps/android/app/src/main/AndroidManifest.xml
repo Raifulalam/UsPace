@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.software.live_wallpaper" android:required="true" />
 
     <application
@@ -19,13 +21,22 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="messages" />
 
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".NativeAuthActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".WebAppActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".MainActivity" android:exported="false" />
+        <activity android:name=".NativeCoupleActivity" android:exported="false" />
+        <activity android:name=".NativeSettingsActivity" android:exported="false" />
+        <activity android:name=".NativeChatActivity" android:exported="false" />
+        <activity android:name=".NativeCallsActivity" android:exported="false" />
+        <activity android:name=".NativeCanvasActivity" android:exported="false" />
+        <activity android:name=".NativeMemoriesActivity" android:exported="false" />
+        <activity android:name=".NativeMediaLibraryActivity" android:exported="false" />
+        <activity android:name=".NativeAccountActivity" android:exported="false" />
+        <activity android:name=".NativeMediaPreviewActivity" android:exported="false" />
 
         <service
             android:name=".UsPaceFirebaseMessagingService"

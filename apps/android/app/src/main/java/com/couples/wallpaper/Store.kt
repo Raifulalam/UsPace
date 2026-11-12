@@ -79,6 +79,9 @@ class Store(context: Context) {
         put("roomKeys", o.toString())
     }
 
+    @Synchronized fun roomKey(version: Int): ByteArray? =
+        roomKeys()[version]?.let { Crypto.unb64(it) }
+
     /** Forget this device's identity and keys (used when a different user signs in). */
     fun clearDevice() {
         put("deviceId", null)
@@ -88,6 +91,6 @@ class Store(context: Context) {
         put("registeredFcmToken", null)
     }
 
-    /** Forget this device completely. The user should also remove it in the web app's Security panel. */
+    /** Forget this device completely. The user should also remove it in Account & security on another device. */
     fun clear() { prefs.edit().clear().apply() }
 }

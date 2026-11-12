@@ -2,6 +2,9 @@ package com.couples.wallpaper
 
 import android.util.Base64
 import com.goterl.lazysodium.SodiumAndroid
+import com.goterl.lazysodium.interfaces.SecretStream
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 /**
  * All libsodium use is isolated here and mirrors packages/crypto (JavaScript) exactly:
@@ -25,6 +28,80 @@ object Crypto {
         return pk to sk
     }
 
+    fun newRoomKey(): ByteArray = ByteArray(32).also { sodium.randombytes_buf(it, it.size) }
+
+    fun wrapRoomKey(roomKey: ByteArray, recipientPublicKey: ByteArray, senderSecretKey: ByteArray): Pair<String, String> {
+        require(roomKey.size == 32 && recipientPublicKey.size == 32 && senderSecretKey.size == 32)
+        val nonce = ByteArray(24).also { sodium.randombytes_buf(it, it.size) }
+        val ciphertext = ByteArray(48)
+        check(sodium.crypto_box_easy(ciphertext, roomKey, roomKey.size.toLong(), nonce, recipientPublicKey, senderSecretKey) == 0) {
+            "room key wrapping failed"
+        }
+        return b64(nonce) to b64(ciphertext)
+    }
+
+    fun newRecoveryKey(): ByteArray = ByteArray(32).also { sodium.randombytes_buf(it, it.size) }
+
+    fun formatRecoveryKey(key: ByteArray): String {
+        require(key.size == 32)
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        var buffer = 0
+        var bits = 0
+        val encoded = StringBuilder(52)
+        key.forEach { byte ->
+            buffer = (buffer shl 8) or (byte.toInt() and 0xff)
+            bits += 8
+            while (bits >= 5) {
+                bits -= 5
+                encoded.append(alphabet[(buffer shr bits) and 31])
+            }
+        }
+        if (bits > 0) encoded.append(alphabet[(buffer shl (5 - bits)) and 31])
+        return encoded.toString().chunked(4).joinToString("-")
+    }
+
+    fun parseRecoveryKey(text: String): ByteArray {
+        val clean = text.uppercase().filterNot { it.isWhitespace() || it == '-' }
+        require(clean.length == 52) { "Recovery key must contain 13 groups of 4 characters." }
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        var buffer = 0
+        var bits = 0
+        val out = ByteArray(32)
+        var count = 0
+        clean.forEach { char ->
+            val value = alphabet.indexOf(char)
+            require(value >= 0) { "Recovery key has an invalid character." }
+            buffer = (buffer shl 5) or value
+            bits += 5
+            if (bits >= 8) {
+                bits -= 8
+                if (count < out.size) out[count++] = (buffer shr bits).toByte()
+                buffer = buffer and ((1 shl bits) - 1)
+            }
+        }
+        require(count == 32) { "Recovery key is invalid." }
+        return out
+    }
+
+    fun createRecoveryBlob(recoveryKey: ByteArray, roomKeys: Map<Int, String>, userId: String): Pair<String, String> {
+        require(recoveryKey.size == 32)
+        val keys = JSONObject()
+        roomKeys.forEach { (version, key) -> keys.put(version.toString(), key) }
+        val payload = JSONObject().put("v", 1).put("roomKeys", keys)
+        return encryptPayload(recoveryKey, payload, "couples-recovery-v1|$userId")
+    }
+
+    fun openRecoveryBlob(recoveryKey: ByteArray, nonce: String, ciphertext: String, userId: String): Map<Int, String> {
+        val text = decryptRaw(recoveryKey, nonce, ciphertext, "couples-recovery-v1|$userId")
+            ?: throw IllegalArgumentException("Recovery key is incorrect or the backup was damaged.")
+        val payload = JSONObject(text)
+        require(payload.optInt("v") == 1) { "This recovery backup version is unsupported." }
+        val keys = payload.getJSONObject("roomKeys")
+        return keys.keys().asSequence().mapNotNull { version ->
+            version.toIntOrNull()?.let { it to keys.getString(version) }
+        }.toMap().also { require(it.isNotEmpty()) { "This backup contains no room keys." } }
+    }
+
     /** Opens a room-key envelope addressed to this device. Null if it is not for us or was tampered with. */
     fun unwrapRoomKey(nonceB64: String, ciphertextB64: String, senderPublicB64: String, mySecret: ByteArray): ByteArray? {
         val nonce = runCatching { unb64(nonceB64) }.getOrNull() ?: return null
@@ -46,6 +123,107 @@ object Crypto {
         val rc = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(out, outLen, null, ct, ct.size.toLong(), ad, ad.size.toLong(), nonce, key)
         if (rc != 0) return null
         return unpad(out.copyOf(outLen[0].toInt()))?.toString(Charsets.UTF_8)
+    }
+
+    fun encryptPayload(key: ByteArray, payload: JSONObject, aad: String): Pair<String, String> {
+        val nonce = ByteArray(24)
+        sodium.randombytes_buf(nonce, nonce.size)
+        val plain = pad(payload.toString().toByteArray(Charsets.UTF_8))
+        val ad = aad.toByteArray(Charsets.UTF_8)
+        val out = ByteArray(plain.size + 16)
+        val outLen = LongArray(1)
+        check(
+            sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+                out,
+                outLen,
+                plain,
+                plain.size.toLong(),
+                ad,
+                ad.size.toLong(),
+                null,
+                nonce,
+                key,
+            ) == 0
+        ) { "payload encryption failed" }
+        return b64(nonce) to b64(out)
+    }
+
+    fun messageAad(coupleId: String, senderId: String, clientMsgId: String, keyVersion: Int, kind: String) =
+        "couples-msg-v1|$coupleId|$senderId|$clientMsgId|$keyVersion|$kind"
+
+    data class EncryptedMedia(val header: ByteArray, val ciphertext: ByteArray)
+
+    fun newMediaKey(): ByteArray = ByteArray(SecretStream.KEYBYTES).also {
+        sodium.crypto_secretstream_xchacha20poly1305_keygen(it)
+    }
+
+    fun encryptMedia(plain: ByteArray, key: ByteArray, chunkSize: Int = 1024 * 1024): EncryptedMedia {
+        require(key.size == SecretStream.KEYBYTES) { "invalid media key" }
+        require(chunkSize > 0) { "invalid media chunk size" }
+        val header = ByteArray(SecretStream.HEADERBYTES)
+        val state = SecretStream.State()
+        check(sodium.crypto_secretstream_xchacha20poly1305_init_push(state, header, key) == 0) {
+            "media encryption initialization failed"
+        }
+        val output = ByteArrayOutputStream()
+        var offset = 0
+        while (offset < plain.size || (plain.isEmpty() && offset == 0)) {
+            val end = minOf(offset + chunkSize, plain.size)
+            val final = end == plain.size
+            val message = plain.copyOfRange(offset, end)
+            val cipher = ByteArray(message.size + SecretStream.ABYTES)
+            check(
+                sodium.crypto_secretstream_xchacha20poly1305_push(
+                    state,
+                    cipher,
+                    null,
+                    message,
+                    message.size.toLong(),
+                    null,
+                    0,
+                    if (final) SecretStream.TAG_FINAL else SecretStream.TAG_MESSAGE,
+                ) == 0,
+            ) { "media encryption failed" }
+            output.write(cipher)
+            offset = end
+            if (final) break
+        }
+        return EncryptedMedia(header, output.toByteArray())
+    }
+
+    fun decryptMedia(encrypted: EncryptedMedia, key: ByteArray, chunkSize: Int = 1024 * 1024): ByteArray? {
+        if (key.size != SecretStream.KEYBYTES || encrypted.header.size != SecretStream.HEADERBYTES || chunkSize <= 0) {
+            return null
+        }
+        val state = SecretStream.State()
+        if (sodium.crypto_secretstream_xchacha20poly1305_init_pull(state, encrypted.header, key) != 0) return null
+        val output = ByteArrayOutputStream()
+        var offset = 0
+        while (offset < encrypted.ciphertext.size) {
+            val remaining = encrypted.ciphertext.size - offset
+            val cipherSize = minOf(chunkSize + SecretStream.ABYTES, remaining)
+            if (cipherSize < SecretStream.ABYTES) return null
+            val cipher = encrypted.ciphertext.copyOfRange(offset, offset + cipherSize)
+            val message = ByteArray(cipherSize - SecretStream.ABYTES)
+            val messageLen = LongArray(1)
+            val tag = ByteArray(1)
+            if (
+                sodium.crypto_secretstream_xchacha20poly1305_pull(
+                    state,
+                    message,
+                    messageLen,
+                    tag,
+                    cipher,
+                    cipher.size.toLong(),
+                    null,
+                    0,
+                ) != 0
+            ) return null
+            output.write(message, 0, messageLen[0].toInt())
+            offset += cipherSize
+            if (tag[0] == SecretStream.TAG_FINAL) return if (offset == encrypted.ciphertext.size) output.toByteArray() else null
+        }
+        return null
     }
 
     internal fun unpad(b: ByteArray): ByteArray? {

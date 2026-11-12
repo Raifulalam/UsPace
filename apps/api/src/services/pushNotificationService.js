@@ -24,7 +24,7 @@ const INVALID_TOKEN_CODES = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-async function notifyUsers({ userIds, type, title, body, destination = '/space', eventId }) {
+async function notifyUsers({ userIds, type, title, body, destination = '/space', eventId, coupleId }) {
   if (!messaging) return { configured: false, sent: 0 };
   const tokens = await PushToken.find({ userId: { $in: userIds }, platform: 'android' }).select('_id token').sort({ createdAt: 1 });
   if (!tokens.length) return { configured: true, sent: 0 };
@@ -33,7 +33,12 @@ async function notifyUsers({ userIds, type, title, body, destination = '/space',
     tokens: tokens.map((t) => t.token),
     android: { priority: 'high' },
     notification: { title, body },
-    data: { type, eventId: String(eventId || `${type}:${Date.now()}`), notificationDestination: destination },
+    data: {
+      type,
+      eventId: String(eventId || `${type}:${Date.now()}`),
+      notificationDestination: destination,
+      ...(coupleId ? { coupleId: String(coupleId) } : {}),
+    },
   });
   const invalidIds = response.responses
     .map((result, index) => result.success || !INVALID_TOKEN_CODES.has(result.error?.code) ? null : tokens[index]._id)
@@ -55,9 +60,10 @@ function notifyNewMessage({ coupleId, senderId, messageId }) {
     senderId,
     type: 'new_message',
     title: 'UsPace',
-    body: 'You received a new message.',
+    body: 'You have a new message',
     destination: '/space?view=chat',
     eventId: `message:${messageId}`,
+    coupleId,
   });
 }
 

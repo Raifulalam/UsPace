@@ -42,6 +42,7 @@ class Api(private val store: Store) {
     private fun base() = store.baseUrl.trim().trimEnd('/')
 
     fun forget() { accessToken = null }
+    fun setAccessToken(value: String) { accessToken = value }
 
     suspend fun login(identifier: String, password: String): JSONObject {
         val d = raw("POST", "/auth/login", JSONObject().put("identifier", identifier).put("password", password), false, true)
@@ -63,6 +64,12 @@ class Api(private val store: Store) {
         return d
     }
 
+    suspend fun requestPasswordReset(email: String): JSONObject =
+        raw("POST", "/auth/password/forgot", JSONObject().put("email", email), false)
+
+    suspend fun resetPassword(token: String, password: String): JSONObject =
+        raw("POST", "/auth/password/reset", JSONObject().put("token", token).put("password", password), false)
+
     /** Refreshes the session. Returns false if it is gone (the user must sign in again). */
     suspend fun refresh(): Boolean = refreshLock.withLock {
         try {
@@ -77,7 +84,69 @@ class Api(private val store: Store) {
 
     suspend fun get(path: String) = call("GET", path, null)
     suspend fun post(path: String, body: JSONObject? = null) = call("POST", path, body)
+    suspend fun put(path: String, body: JSONObject? = null) = call("PUT", path, body)
+    suspend fun patch(path: String, body: JSONObject? = null) = call("PATCH", path, body)
     suspend fun delete(path: String, body: JSONObject? = null) = call("DELETE", path, body)
+
+    suspend fun reserveMedia(kind: String, sizeBytes: Int): JSONObject =
+        post("/media", JSONObject().put("kind", kind).put("sizeBytes", sizeBytes))
+
+    suspend fun uploadMediaBlob(id: String, ciphertext: ByteArray): JSONObject {
+        if (accessToken == null && !refresh()) throw ApiException(401, "UNAUTHENTICATED")
+        return try {
+            uploadMediaBlobRaw(id, ciphertext)
+        } catch (e: ApiException) {
+            if (e.status == 401 && refresh()) uploadMediaBlobRaw(id, ciphertext) else throw e
+        }
+    }
+
+    suspend fun downloadMediaBlob(id: String): ByteArray {
+        if (accessToken == null && !refresh()) throw ApiException(401, "UNAUTHENTICATED")
+        return try {
+            downloadMediaBlobRaw(id)
+        } catch (e: ApiException) {
+            if (e.status == 401 && refresh()) downloadMediaBlobRaw(id) else throw e
+        }
+    }
+
+    private suspend fun downloadMediaBlobRaw(id: String): ByteArray = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(base() + "/api/v1/media/" + id + "/blob")
+            .header("Authorization", "Bearer " + (accessToken ?: ""))
+            .get()
+            .build()
+        client.newCall(request).execute().use { resp ->
+            val body = resp.body
+            if (!resp.isSuccessful || body == null) {
+                val text = body?.string().orEmpty()
+                val code = runCatching { JSONObject(text).getJSONObject("error").getString("code") }
+                    .getOrDefault("HTTP_${resp.code}")
+                throw ApiException(resp.code, code)
+            }
+            body.bytes()
+        }
+    }
+
+    private suspend fun uploadMediaBlobRaw(id: String, ciphertext: ByteArray): JSONObject = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(base() + "/api/v1/media/" + id + "/blob")
+            .header("Authorization", "Bearer " + (accessToken ?: ""))
+            .header("Content-Type", "application/octet-stream")
+            .header("Content-Length", ciphertext.size.toString())
+            .put(ciphertext.toRequestBody("application/octet-stream".toMediaType()))
+            .build()
+        client.newCall(request).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                val code = runCatching { JSONObject(text).getJSONObject("error").getString("code") }
+                    .getOrDefault("HTTP_${resp.code}")
+                throw ApiException(resp.code, code)
+            }
+            if (resp.code == 204 || text.isEmpty()) JSONObject()
+            else JSONObject(text).optJSONObject("data") ?: JSONObject()
+        }
+    }
+
     suspend fun logout() {
         try {
             raw("POST", "/auth/logout", null, false)

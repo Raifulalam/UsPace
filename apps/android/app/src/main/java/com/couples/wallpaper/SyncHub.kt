@@ -58,6 +58,7 @@ object SyncHub {
     private val roomKeys = ConcurrentHashMap<Int, ByteArray>()
     @Volatile private var coupleId = ""
     @Volatile private var canvasId: String? = null
+    @Volatile private var pinnedCanvasId: String? = null
     @Volatile private var lastSeq = 0L
     @Volatile private var socket: Socket? = null
 
@@ -88,6 +89,7 @@ object SyncHub {
     fun restart() {
         synchronized(lock) {
             job?.cancel(); job = null
+            pinnedCanvasId = null
             resetCanvas(); roomKeys.clear()
             if (refs > 0) job = scope.launch { runLoop() }
         }
@@ -132,7 +134,8 @@ object SyncHub {
         if (!roomKeys.containsKey(current)) { setStatus(Status.WAITING_APPROVAL); return }
         val list = api.get("/canvases").getJSONArray("canvases")
         val newest = if (list.length() > 0) list.getJSONObject(list.length() - 1).getString("id") else null
-        if (newest != canvasId) { resetCanvas(); canvasId = newest }
+        val selected = pinnedCanvasId ?: newest
+        if (selected != canvasId) { resetCanvas(); canvasId = selected }
     }
 
     private suspend fun syncKeys() {
@@ -211,6 +214,7 @@ object SyncHub {
     }
 
     private suspend fun switchToNewest(s: Socket) {
+        if (pinnedCanvasId != null) return
         val list = api.get("/canvases").getJSONArray("canvases")
         val newest = if (list.length() > 0) list.getJSONObject(list.length() - 1).getString("id") else null
         if (newest == canvasId) return
@@ -218,6 +222,33 @@ object SyncHub {
         resetCanvas()
         canvasId = newest
         joinCanvas(s)
+    }
+
+    fun selectCanvas(id: String) {
+        pinnedCanvasId = id
+        scope.launch {
+            val s = socket
+            if (s == null || !s.connected()) {
+                resetCanvas()
+                return@launch
+            }
+            canvasId?.let { s.emit("canvas:leave", JSONObject().put("canvasId", it)) }
+            resetCanvas()
+            canvasId = id
+            runCatching { joinCanvas(s) }.onFailure { setStatus(Status.OFFLINE) }
+        }
+    }
+
+    fun followNewestCanvas() {
+        pinnedCanvasId = null
+        scope.launch {
+            val s = socket
+            if (s == null || !s.connected()) {
+                resetCanvas()
+                return@launch
+            }
+            runCatching { switchToNewest(s) }.onFailure { setStatus(Status.OFFLINE) }
+        }
     }
 
     private suspend fun onKeysUpdated() {
