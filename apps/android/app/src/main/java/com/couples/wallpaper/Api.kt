@@ -77,6 +77,7 @@ class Api(private val store: Store) {
 
     suspend fun get(path: String) = call("GET", path, null)
     suspend fun post(path: String, body: JSONObject? = null) = call("POST", path, body)
+    suspend fun delete(path: String, body: JSONObject? = null) = call("DELETE", path, body)
     suspend fun logout() {
         try {
             raw("POST", "/auth/logout", null, false)
@@ -104,7 +105,7 @@ class Api(private val store: Store) {
         if (auth) accessToken?.let { rb.header("Authorization", "Bearer $it") }
         val req = when (method) {
             "GET" -> rb.get()
-            "DELETE" -> rb.delete()
+            "DELETE" -> rb.delete((body?.toString() ?: "{}").toRequestBody(json))
             else -> rb.method(method, (body?.toString() ?: "{}").toRequestBody(json))
         }.build()
         client.newCall(req).execute().use { resp ->

@@ -34,7 +34,7 @@ async function notifyNewMessage({ coupleId, senderId, messageId }) {
 
   const response = await messaging.sendEachForMulticast({
     tokens: tokens.map((t) => t.token),
-    notification: { title: 'UsPace', body: 'You have a new message' },
+    android: { priority: 'high' },
     data: { type: 'new_message', coupleId: String(coupleId), messageId: String(messageId) },
   });
   const invalidIds = response.responses

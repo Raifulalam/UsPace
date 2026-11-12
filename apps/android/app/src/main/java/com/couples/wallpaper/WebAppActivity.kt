@@ -31,12 +31,20 @@ import android.widget.TextView
 import android.app.Activity
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Hosts the existing React application. Authentication is shared by copying only the
  * httpOnly refresh cookie into WebView's cookie store; access tokens never cross the boundary.
  */
 class WebAppActivity : Activity() {
+    companion object {
+        const val EXTRA_NOTIFICATION_DESTINATION = "notification_destination"
+    }
     private inner class AndroidBridge {
         @JavascriptInterface
         fun openLiveWallpaper() {
@@ -69,6 +77,7 @@ class WebAppActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var progress: ProgressBar
     private lateinit var errorPanel: LinearLayout
+    private val lifecycleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val fileRequest = 1001
     private val capabilityRequest = 1002
@@ -89,7 +98,14 @@ class WebAppActivity : Activity() {
         buildUi()
         configureWebView()
         prepareNotifications()
-        transferRefreshCookie { webView.loadUrl(webUrl()) }
+        lifecycleScope.launch { PushRegistration.registerCurrentToken() }
+        transferRefreshCookie { webView.loadUrl(webUrl() + intent.getStringExtra(EXTRA_NOTIFICATION_DESTINATION).orEmpty()) }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent?.getStringExtra(EXTRA_NOTIFICATION_DESTINATION)?.let { webView.loadUrl(webUrl() + it) }
     }
 
     override fun onPause() {
@@ -278,7 +294,11 @@ class WebAppActivity : Activity() {
                 }
             )
         }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            !SyncHub.store.notificationsPermissionRequested &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            SyncHub.store.notificationsPermissionRequested = true
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1003)
         }
     }
@@ -298,6 +318,7 @@ class WebAppActivity : Activity() {
     }
 
     override fun onDestroy() {
+        lifecycleScope.cancel()
         persistWebRefreshCookie()
         fileCallback?.onReceiveValue(null)
         fileCallback = null

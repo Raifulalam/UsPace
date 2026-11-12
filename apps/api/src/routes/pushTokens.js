@@ -24,6 +24,7 @@ router.post('/', validate(registerSchema), asyncHandler(async (req, res) => {
   const device = await Device.findOne({ _id: req.body.deviceId, userId: req.user._id, revokedAt: null }).select('_id');
   if (!device) throw new AppError(403, 'DEVICE_INVALID', 'This device is not registered or was revoked');
   try {
+    await PushToken.deleteMany({ token: req.body.token, deviceId: { $ne: device._id } });
     const token = await PushToken.findOneAndUpdate(
       { userId: req.user._id, deviceId: device._id },
       { $set: { token: req.body.token, platform: req.body.platform, lastSeenAt: new Date() } },

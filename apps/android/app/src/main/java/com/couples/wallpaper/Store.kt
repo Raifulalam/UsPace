@@ -44,12 +44,30 @@ class Store(context: Context) {
     var deviceSecret: String?
         get() = str("deviceSecret")
         set(v) = put("deviceSecret", v)
+    var fcmToken: String?
+        get() = str("fcmToken")
+        set(v) = put("fcmToken", v)
+    var registeredFcmToken: String?
+        get() = str("registeredFcmToken")
+        set(v) = put("registeredFcmToken", v)
+    var notificationsPermissionRequested: Boolean
+        get() = prefs.getBoolean("notificationsPermissionRequested", false)
+        set(v) { prefs.edit().putBoolean("notificationsPermissionRequested", v).apply() }
     /** Privacy default: show a neutral placeholder instead of the drawing while the phone is locked. */
     var hideWhenLocked: Boolean
         get() = prefs.getBoolean("hideWhenLocked", true)
         set(v) { prefs.edit().putBoolean("hideWhenLocked", v).apply() }
 
     fun hasSession() = !refreshCookie.isNullOrEmpty() && !deviceId.isNullOrEmpty()
+
+    @Synchronized fun markNotificationIfNew(messageId: String): Boolean {
+        if (messageId.isBlank()) return true
+        val seen = prefs.getStringSet("notificationIds", emptySet()).orEmpty().toMutableSet()
+        if (!seen.add(messageId)) return false
+        while (seen.size > 50) seen.remove(seen.first())
+        prefs.edit().putStringSet("notificationIds", seen).apply()
+        return true
+    }
 
     @Synchronized fun roomKeys(): Map<Int, String> {
         val o = JSONObject(str("roomKeys") ?: "{}")
@@ -62,7 +80,13 @@ class Store(context: Context) {
     }
 
     /** Forget this device's identity and keys (used when a different user signs in). */
-    fun clearDevice() { put("deviceId", null); put("devicePub", null); put("deviceSecret", null); put("roomKeys", null) }
+    fun clearDevice() {
+        put("deviceId", null)
+        put("devicePub", null)
+        put("deviceSecret", null)
+        put("roomKeys", null)
+        put("registeredFcmToken", null)
+    }
 
     /** Forget this device completely. The user should also remove it in the web app's Security panel. */
     fun clear() { prefs.edit().clear().apply() }

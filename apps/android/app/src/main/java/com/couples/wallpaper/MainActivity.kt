@@ -73,6 +73,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         SyncHub.init(this)
         if (SyncHub.store.hasSession()) {
+            scope.launch { PushRegistration.registerCurrentToken() }
             openOurSpace()
             return
         }
@@ -221,6 +222,7 @@ class MainActivity : Activity() {
         if (store.userId != null && store.userId != newId) store.clearDevice() // a different person: never reuse the old identity
         store.userId = newId
         ensureDevice()
+        PushRegistration.registerCurrentToken()
         SyncHub.restart()
         openOurSpace()
     }
@@ -230,6 +232,7 @@ class MainActivity : Activity() {
         val d = SyncHub.api.register(username.trim(), email.trim(), password, birthDate.trim(), displayName)
         store.userId = d.getJSONObject("user").getString("id")
         ensureDevice()
+        PushRegistration.registerCurrentToken()
         SyncHub.restart()
         openOurSpace()
     }
@@ -291,6 +294,7 @@ class MainActivity : Activity() {
     private fun signOut() {
         scope.launch {
             try {
+                PushRegistration.removeCurrentToken()
                 SyncHub.api.logout()
             } catch (_: Exception) {
                 // Clear local credentials even if the server is temporarily unreachable.
@@ -302,6 +306,7 @@ class MainActivity : Activity() {
                 SyncHub.restart()
                 shownKey = ""
             }
+
         }
     }
 }

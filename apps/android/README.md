@@ -8,6 +8,10 @@ app and WebView, so the user signs in once and remains signed in until logout. O
 cookie is transferred to WebView; the React access token remains in memory and is never exposed
 through a JavaScript bridge.
 
+Push notifications use Firebase Cloud Messaging with a generic, data-only message payload. The
+Android app registers its FCM token only after authentication and device registration, removes it
+on logout, and opens the shared space when a new-message notification is tapped.
+
 Shows the couple's newest canvas as a **live wallpaper**: when your partner draws, strokes appear on this phone as they are drawn.
 Android only (iOS does not allow third-party live wallpapers).
 
