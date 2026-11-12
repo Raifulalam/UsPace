@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Clock, Heart, Lock, Mic, MoreVertical, Paperclip, Pin, Search, Send, Smile, Square, X } from 'lucide-react';
 import { matchesQuery, mediaIdsOf, memoryTypeFor, validateMemoryPayload, type Descriptor } from '@couples/media-core';
-import { STICKERS, TTL_OPTIONS, groupByDay, lastSeenMessageId } from '@couples/space-core';
+import { STICKERS, TTL_OPTIONS, formatRelative, groupByDay, lastSeenMessageId } from '@couples/space-core';
 import { api, ApiError, tryRefresh } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import type { E2EE } from '@/lib/e2ee';
