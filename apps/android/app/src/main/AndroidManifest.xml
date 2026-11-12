@@ -11,7 +11,7 @@
     <uses-feature android:name="android.software.live_wallpaper" android:required="true" />
 
     <application
-        android:label="@string/app_name"
+        android:label="@string/wallpaper_name"
         android:allowBackup="false"
         android:usesCleartextTraffic="${usesCleartext}"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
