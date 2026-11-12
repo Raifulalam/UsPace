@@ -40,11 +40,11 @@ object PushRegistration {
         }
     }
 
-    private suspend fun register(token: String) = registrationLock.withLock {
+    private suspend fun register(token: String): Unit = registrationLock.withLock {
         val store = SyncHub.store
-        val deviceId = store.deviceId ?: return
-        if (token.isBlank()) return
-        if (store.registeredFcmToken == token) return
+        val deviceId = store.deviceId ?: return@withLock
+        if (token.isBlank()) return@withLock
+        if (store.registeredFcmToken == token) return@withLock
         try {
             SyncHub.api.post(
                 "/push-tokens",
