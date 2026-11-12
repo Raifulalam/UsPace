@@ -44,7 +44,7 @@ class Api(private val store: Store) {
     fun forget() { accessToken = null }
 
     suspend fun login(identifier: String, password: String): JSONObject {
-        val d = raw("POST", "/auth/login", JSONObject().put("identifier", identifier).put("password", password), false)
+        val d = raw("POST", "/auth/login", JSONObject().put("identifier", identifier).put("password", password), false, true)
         accessToken = d.getString("accessToken")
         return d
     }
@@ -58,12 +58,12 @@ class Api(private val store: Store) {
             .put("termsAccepted", true)
             .put("privacyAccepted", true)
         if (!displayName.isNullOrBlank()) body.put("displayName", displayName.trim())
-        val d = raw("POST", "/auth/register", body, false)
+        val d = raw("POST", "/auth/register", body, false, true)
         accessToken = d.getString("accessToken")
         return d
     }
 
-    /** Rotates the session. Returns false if the session is gone (user must sign in again). */
+    /** Refreshes the session. Returns false if it is gone (the user must sign in again). */
     suspend fun refresh(): Boolean = refreshLock.withLock {
         try {
             accessToken = raw("POST", "/auth/refresh", null, false).getString("accessToken")
@@ -77,6 +77,13 @@ class Api(private val store: Store) {
 
     suspend fun get(path: String) = call("GET", path, null)
     suspend fun post(path: String, body: JSONObject? = null) = call("POST", path, body)
+    suspend fun logout() {
+        try {
+            raw("POST", "/auth/logout", null, false)
+        } finally {
+            accessToken = null
+        }
+    }
 
     private suspend fun call(method: String, path: String, body: JSONObject?): JSONObject {
         if (accessToken == null && !refresh()) throw ApiException(401, "UNAUTHENTICATED")
@@ -88,8 +95,12 @@ class Api(private val store: Store) {
         }
     }
 
-    private suspend fun raw(method: String, path: String, body: JSONObject?, auth: Boolean): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun raw(method: String, path: String, body: JSONObject?, auth: Boolean, sharedSession: Boolean = false): JSONObject = withContext(Dispatchers.IO) {
         val rb = Request.Builder().url(base() + "/api/v1" + path)
+        if (sharedSession) {
+            rb.header("X-Shared-Session", "android-webview")
+            rb.header("User-Agent", "OurSpaceAndroid")
+        }
         if (auth) accessToken?.let { rb.header("Authorization", "Bearer $it") }
         val req = when (method) {
             "GET" -> rb.get()

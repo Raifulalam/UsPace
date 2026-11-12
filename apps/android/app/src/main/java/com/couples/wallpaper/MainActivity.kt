@@ -290,12 +290,18 @@ class MainActivity : Activity() {
 
     private fun signOut() {
         scope.launch {
-            SyncHub.store.clear()
-            SyncHub.api.forget()
-            CookieManager.getInstance().removeAllCookies(null)
-            CookieManager.getInstance().flush()
-            SyncHub.restart()
-            shownKey = ""
+            try {
+                SyncHub.api.logout()
+            } catch (_: Exception) {
+                // Clear local credentials even if the server is temporarily unreachable.
+            } finally {
+                SyncHub.store.clear()
+                SyncHub.api.forget()
+                CookieManager.getInstance().removeAllCookies(null)
+                CookieManager.getInstance().flush()
+                SyncHub.restart()
+                shownKey = ""
+            }
         }
     }
 }

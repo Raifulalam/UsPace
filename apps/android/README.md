@@ -3,8 +3,10 @@
 The app uses a hybrid architecture. Kotlin handles login/signup, encrypted device registration,
 session storage, device approval status, wallpaper setup, Android permissions, downloads, and
 navigation. The existing React app is hosted in a hardened WebView for chat, canvas, memories,
-media, calls, and settings. Only the refresh cookie is transferred to WebView; the React access
-token remains in memory and is never exposed through a JavaScript bridge.
+media, calls, and settings. The Android sign-in creates one shared refresh session for the native
+app and WebView, so the user signs in once and remains signed in until logout. Only the refresh
+cookie is transferred to WebView; the React access token remains in memory and is never exposed
+through a JavaScript bridge.
 
 Shows the couple's newest canvas as a **live wallpaper**: when your partner draws, strokes appear on this phone as they are drawn.
 Android only (iOS does not allow third-party live wallpapers).

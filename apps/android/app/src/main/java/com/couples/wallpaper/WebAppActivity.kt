@@ -89,8 +89,7 @@ class WebAppActivity : Activity() {
         buildUi()
         configureWebView()
         prepareNotifications()
-        transferRefreshCookie()
-        webView.loadUrl(webUrl())
+        transferRefreshCookie { webView.loadUrl(webUrl()) }
     }
 
     override fun onPause() {
@@ -242,11 +241,20 @@ class WebAppActivity : Activity() {
         }
     }
 
-    private fun transferRefreshCookie() {
-        val cookie = SyncHub.store.refreshCookie ?: return
+    private fun transferRefreshCookie(onReady: () -> Unit) {
+        val cookie = SyncHub.store.refreshCookie
+        if (cookie == null) {
+            onReady()
+            return
+        }
         val apiBase = SyncHub.store.baseUrl.trim().trimEnd('/')
-        CookieManager.getInstance().setCookie(apiBase, "rt=$cookie; Path=/api/v1/auth; Secure; HttpOnly; SameSite=None")
-        CookieManager.getInstance().flush()
+        CookieManager.getInstance().setCookie(
+            apiBase,
+            "rt=$cookie; Path=/api/v1/auth; Secure; HttpOnly; SameSite=None"
+        ) {
+            CookieManager.getInstance().flush()
+            onReady()
+        }
     }
 
     private fun persistWebRefreshCookie() {

@@ -20,17 +20,20 @@ function ageOn(birth, now = new Date()) {
   return age;
 }
 
-async function issueSession(user, ctx, familyId = crypto.randomUUID()) {
+async function issueSession(user, ctx, familyId = crypto.randomUUID(), sharedSession = false) {
   const refreshToken = randomToken(48);
   await RefreshToken.create({
     userId: user._id,
     familyId,
     tokenHash: sha256(refreshToken),
-    expiresAt: new Date(Date.now() + config.REFRESH_TOKEN_TTL_DAYS * 86400000),
+    sharedSession,
+    expiresAt: new Date(Date.now() + (sharedSession
+      ? config.SHARED_REFRESH_TOKEN_TTL_DAYS
+      : config.REFRESH_TOKEN_TTL_DAYS) * 86400000),
     userAgent: ctx.userAgent,
     ip: ctx.ip,
   });
-  return { accessToken: signAccessToken(user), refreshToken };
+  return { accessToken: signAccessToken(user), refreshToken, persistent: sharedSession };
 }
 
 async function register(input, ctx) {
@@ -59,7 +62,7 @@ async function register(input, ctx) {
     throw e;
   }
   await sendVerificationEmail(user.email, verifyToken);
-  return { user, session: await issueSession(user, ctx) };
+  return { user, session: await issueSession(user, ctx, crypto.randomUUID(), ctx.sharedSession === true) };
 }
 
 async function login({ identifier, password }, ctx) {
@@ -94,18 +97,15 @@ async function login({ identifier, password }, ctx) {
       $unset: { lockUntil: 1 },
     }
   );
-  return { user, session: await issueSession(user, ctx) };
+  return { user, session: await issueSession(user, ctx, crypto.randomUUID(), ctx.sharedSession === true) };
 }
 
-// Rotating refresh tokens with reuse detection: a token can be redeemed once. Replaying an
-// already-used token means it was probably stolen, so the whole device family is revoked.
+// Normal refresh tokens rotate with reuse detection. Shared Android/WebView sessions keep
+// one refresh token so both surfaces can refresh the same login without racing each other.
 async function refresh(rawToken, ctx) {
   if (!rawToken) throw new AppError(401, 'UNAUTHENTICATED', 'No refresh token');
   const tokenHash = sha256(rawToken);
-  const rec = await RefreshToken.findOneAndUpdate(
-    { tokenHash, revokedAt: null, expiresAt: { $gt: new Date() } },
-    { $set: { revokedAt: new Date() } }
-  );
+  const rec = await RefreshToken.findOne({ tokenHash, revokedAt: null, expiresAt: { $gt: new Date() } });
   if (!rec) {
     const old = await RefreshToken.findOne({ tokenHash });
     if (old) await RefreshToken.updateMany({ familyId: old.familyId, revokedAt: null }, { $set: { revokedAt: new Date() } });
@@ -113,6 +113,17 @@ async function refresh(rawToken, ctx) {
   }
   const user = await User.findById(rec.userId);
   if (!user || user.status !== 'active') throw new AppError(401, 'INVALID_REFRESH', 'Session expired, please log in again');
+  if (rec.sharedSession) {
+    return { user, session: { accessToken: signAccessToken(user), refreshToken: rawToken, persistent: true } };
+  }
+  const consumed = await RefreshToken.findOneAndUpdate(
+    { _id: rec._id, revokedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { revokedAt: new Date() } }
+  );
+  if (!consumed) {
+    await RefreshToken.updateMany({ familyId: rec.familyId, revokedAt: null }, { $set: { revokedAt: new Date() } });
+    throw new AppError(401, 'INVALID_REFRESH', 'Session expired, please log in again');
+  }
   return { user, session: await issueSession(user, ctx, rec.familyId) };
 }
 

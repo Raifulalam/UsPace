@@ -10,7 +10,7 @@ const account = require('../services/accountService');
 const { publicUser } = require('../models/User');
 
 const COOKIE = 'rt';
-const cookieOpts = () => ({
+const cookieOpts = (maxAge = config.REFRESH_TOKEN_TTL_DAYS * 86400000) => ({
   httpOnly: true,
   secure: config.NODE_ENV === 'production',
   // The production web app and API may be on different sites (for example
@@ -18,11 +18,18 @@ const cookieOpts = () => ({
   // credentialed refresh requests can keep the session after a reload.
   sameSite: config.NODE_ENV === 'production' ? 'none' : 'strict',
   path: '/api/v1/auth',
-  maxAge: config.REFRESH_TOKEN_TTL_DAYS * 86400000,
+  maxAge,
 });
-const ctx = (req) => ({ ip: req.ip, userAgent: (req.get('user-agent') || '').slice(0, 200) });
+const ctx = (req) => ({
+  ip: req.ip,
+  userAgent: (req.get('user-agent') || '').slice(0, 200),
+  sharedSession: req.get('x-shared-session') === 'android-webview' &&
+    req.get('user-agent')?.includes('OurSpaceAndroid') === true,
+});
 const send = (res, status, { user, session }) => {
-  res.cookie(COOKIE, session.refreshToken, cookieOpts());
+  res.cookie(COOKIE, session.refreshToken, cookieOpts(session.persistent
+    ? config.SHARED_REFRESH_TOKEN_TTL_DAYS * 86400000
+    : undefined));
   res.status(status).json({ data: { user: publicUser(user), accessToken: session.accessToken } });
 };
 

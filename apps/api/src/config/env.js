@@ -7,6 +7,7 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  SHARED_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(3650),
   CLIENT_ORIGIN: z.string().url(),
   ADDITIONAL_CLIENT_ORIGINS: z.string().default('http://127.0.0.1:3000').transform((v) => v.split(',').map((x) => x.trim()).filter(Boolean)),
   MIN_AGE: z.coerce.number().int().min(13).default(18),

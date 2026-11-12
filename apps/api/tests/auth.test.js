@@ -86,4 +86,16 @@ describe('sessions', () => {
     expect((await request(app).post('/api/v1/auth/logout').set('Cookie', u.cookie)).status).toBe(204);
     expect((await request(app).post('/api/v1/auth/refresh').set('Cookie', u.cookie)).status).toBe(401);
   });
+  test('shared Android sessions survive refreshes from both app and web', async () => {
+    const u = await request(app).post('/api/v1/auth/register')
+      .set('X-Shared-Session', 'android-webview')
+      .set('User-Agent', 'OurSpaceAndroid')
+      .send({ username: 'shared', email: 'shared@example.com', password: PASSWORD, birthDate: '1990-01-01' });
+    const first = cookieOf(u);
+    const appRefresh = await request(app).post('/api/v1/auth/refresh').set('Cookie', first);
+    const webRefresh = await request(app).post('/api/v1/auth/refresh').set('Cookie', first);
+    expect(appRefresh.status).toBe(200);
+    expect(webRefresh.status).toBe(200);
+    expect(cookieOf(webRefresh)).toContain(first.split('=')[1].split(';')[0]);
+  });
 });
