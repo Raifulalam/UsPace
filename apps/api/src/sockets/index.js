@@ -11,6 +11,7 @@ const calls = require('../services/callService');
 const { startSchema, idSchema, signalSchema } = require('../schemas/calls');
 const messages = require('../services/messageService');
 const { sendSchema } = require('../schemas/messages');
+const { notifyNewMessage, notifyUsers } = require('../services/pushNotificationService');
 
 const RECHECK_MS = 15000;
 
@@ -103,7 +104,11 @@ function attachSockets(httpServer) {
       try {
         if (!(await ensureMember(socket))) return reply({ ok: false, error: 'NO_ACTIVE_COUPLE' });
         const { message, created, coupleId } = await messages.sendMessage(socket.data.user, parsed.data);
-        if (created) emitToCouple(coupleId, 'message:new', message);
+        if (created) {
+          emitToCouple(coupleId, 'message:new', message);
+          notifyNewMessage({ coupleId, senderId: socket.data.user._id, messageId: message.id })
+            .catch((error) => console.error('push notification delivery failed', error));
+        }
         reply({ ok: true, message });
       } catch (e) {
         reply({ ok: false, error: e.code || 'INTERNAL', details: e.details });
@@ -175,7 +180,20 @@ function attachSockets(httpServer) {
         reply({ ok: false, error: e.code || 'INTERNAL' });
       }
     });
-    callEvent('call:start', startSchema, 6, (u, d) => calls.startCall(u, d));
+    callEvent('call:start', startSchema, 6, async (u, d) => {
+      const result = await calls.startCall(u, d);
+      if (result.calleeId && (result.state === 'ringing' || result.state === 'offline')) {
+        notifyUsers({
+          userIds: [result.calleeId],
+          type: 'incoming_call',
+          title: 'UsPace',
+          body: result.state === 'ringing' ? 'Your partner is calling.' : 'You missed a call from your partner.',
+          destination: '/space',
+          eventId: `call:${d.callId}`,
+        }).catch((error) => console.error('push notification delivery failed', error));
+      }
+      return result;
+    });
     callEvent('call:answer', idSchema, 12, async (u, d) => ({ call: await calls.answerCall(u, d.callId) }));
     callEvent('call:reject', idSchema, 12, async (u, d) => { await calls.rejectCall(u, d.callId); return {}; });
     callEvent('call:end', idSchema, 12, async (u, d) => { await calls.endCall(u, d.callId); return {}; });

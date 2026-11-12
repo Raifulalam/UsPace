@@ -5,6 +5,7 @@ const { ALLOWED_TTL } = require('@couples/space-core');
 const { authenticate } = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const svc = require('../services/coupleService');
+const { notifyUsers } = require('../services/pushNotificationService');
 
 const view = (c) => ({
   id: c.id, name: c.name, theme: c.theme, status: c.status, keyVersion: c.keyVersion, messageTtlSec: c.messageTtlSec || 0, anniversaryDate: c.anniversaryDate || null,
@@ -51,7 +52,17 @@ router.get('/me/invitations', asyncHandler(async (req, res) => {
   res.json({ data: { invitations: (await svc.listInvitations(req.user)).map(invView) } });
 }));
 router.post('/me/invitations/:id/confirm', validate(idParam, 'params'), asyncHandler(async (req, res) => {
-  res.json({ data: { couple: view(await svc.confirmInvitation(req.user, req.params.id)) } });
+  const couple = await svc.confirmInvitation(req.user, req.params.id);
+  const partner = couple.members.find((member) => String(member._id) !== String(req.user._id));
+  if (partner) notifyUsers({
+    userIds: [partner._id],
+    type: 'invitation',
+    title: 'UsPace',
+    body: 'Your couple invitation was confirmed.',
+    destination: '/space',
+    eventId: `invitation-confirmed:${req.params.id}`,
+  }).catch((error) => console.error('push notification delivery failed', error));
+  res.json({ data: { couple: view(couple) } });
 }));
 router.post('/me/invitations/:id/reject', validate(idParam, 'params'), asyncHandler(async (req, res) => {
   res.json({ data: { invitation: invView(await svc.rejectInvitation(req.user, req.params.id)) } });

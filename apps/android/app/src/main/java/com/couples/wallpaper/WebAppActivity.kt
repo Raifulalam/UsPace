@@ -102,10 +102,10 @@ class WebAppActivity : Activity() {
         transferRefreshCookie { webView.loadUrl(webUrl() + intent.getStringExtra(EXTRA_NOTIFICATION_DESTINATION).orEmpty()) }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent?.getStringExtra(EXTRA_NOTIFICATION_DESTINATION)?.let { webView.loadUrl(webUrl() + it) }
+        intent.getStringExtra(EXTRA_NOTIFICATION_DESTINATION)?.let { webView.loadUrl(webUrl() + it) }
     }
 
     override fun onPause() {
@@ -289,7 +289,7 @@ class WebAppActivity : Activity() {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(
-                NotificationChannel("our-space", "Our Space", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel("messages", "Messages", NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "Messages and call notifications"
                 }
             )

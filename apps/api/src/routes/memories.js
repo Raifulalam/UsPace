@@ -7,6 +7,7 @@ const { zObjectId } = require('../utils/b64');
 const S = require('../schemas/memories');
 const svc = require('../services/memoryService');
 const { emitToCouple } = require('../services/realtime');
+const { notifyCouple } = require('../services/pushNotificationService');
 
 const idParam = z.object({ id: zObjectId }).strict();
 const changed = (coupleId) => emitToCouple(coupleId, 'memories:changed', {});
@@ -17,6 +18,15 @@ router.get('/albums', asyncHandler(async (req, res) => res.json({ data: { albums
 router.post('/albums', validate(S.albumCreateSchema), asyncHandler(async (req, res) => {
   const album = await svc.createAlbum(req.user, req.body);
   changed(String(req.user.coupleId));
+  notifyCouple({
+    coupleId: req.user.coupleId,
+    senderId: req.user._id,
+    type: 'memory_activity',
+    title: 'UsPace',
+    body: 'Your partner created a Memories album.',
+    destination: '/space?view=memories',
+    eventId: `album-created:${album.id}`,
+  }).catch((error) => console.error('push notification delivery failed', error));
   res.status(201).json({ data: { album } });
 }));
 router.patch('/albums/:id', validate(idParam, 'params'), validate(S.albumRenameSchema), asyncHandler(async (req, res) => {
@@ -33,7 +43,18 @@ router.delete('/albums/:id', validate(idParam, 'params'), asyncHandler(async (re
 router.get('/', validate(S.listSchema, 'query'), asyncHandler(async (req, res) => res.json({ data: await svc.listMemories(req.user, req.query) })));
 router.post('/', validate(S.createSchema), asyncHandler(async (req, res) => {
   const { memory, created, coupleId } = await svc.createMemory(req.user, req.body);
-  if (created) changed(coupleId);
+  if (created) {
+    changed(coupleId);
+    notifyCouple({
+      coupleId,
+      senderId: req.user._id,
+      type: 'memory_activity',
+      title: 'UsPace',
+      body: 'Your partner added something to Memories.',
+      destination: '/space?view=memories',
+      eventId: `memory-created:${memory.id}`,
+    }).catch((error) => console.error('push notification delivery failed', error));
+  }
   res.status(created ? 201 : 200).json({ data: { memory } });
 }));
 router.patch('/:id', validate(idParam, 'params'), validate(S.patchSchema), asyncHandler(async (req, res) => {

@@ -15,6 +15,9 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="${usesCleartext}"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="messages" />
 
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

@@ -53,7 +53,7 @@ async function startCall(user, { callId, type }) {
   const base = { coupleId: couple._id, callId, callerId: user._id, calleeId: partnerId, type, startedAt: now() };
   if (!realtime.isOnline(String(partnerId))) { // nobody to ring: record a missed call so they see it later
     await CallHistory.create({ ...base, status: 'missed', active: false, endedAt: now(), endedReason: 'offline' });
-    return { state: 'offline' };
+    return { state: 'offline', calleeId: String(partnerId) };
   }
   try {
     await CallHistory.create({ ...base, status: 'ringing', active: true });
@@ -64,7 +64,7 @@ async function startCall(user, { callId, type }) {
   realtime.emitToUser(String(partnerId), 'call:incoming', { callId, type, from: String(user._id) });
   timers.set(callId, setTimeout(() => { expire(callId).catch(() => {}); }, rules.RING_TIMEOUT_MS));
   timers.get(callId).unref?.();
-  return { state: 'ringing' };
+  return { state: 'ringing', calleeId: String(partnerId) };
 }
 
 async function expire(callId) {

@@ -74,7 +74,7 @@ class MainActivity : Activity() {
         SyncHub.init(this)
         if (SyncHub.store.hasSession()) {
             scope.launch { PushRegistration.registerCurrentToken() }
-            openOurSpace()
+            openOurSpace(intent.getStringExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION))
             return
         }
         root = LinearLayout(this).apply {
@@ -237,9 +237,12 @@ class MainActivity : Activity() {
         openOurSpace()
     }
 
-    private fun openOurSpace() {
+    private fun openOurSpace(destination: String? = null) {
         handedOffToApp = true
-        startActivity(Intent(this, WebAppActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        val next = Intent(this, WebAppActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        if (!destination.isNullOrBlank()) next.putExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION, destination)
+        startActivity(next)
         finish()
     }
 

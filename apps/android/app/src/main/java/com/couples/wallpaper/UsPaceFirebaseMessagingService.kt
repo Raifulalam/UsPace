@@ -11,7 +11,6 @@ import com.google.firebase.messaging.RemoteMessage
 class UsPaceFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         private const val CHANNEL_ID = "messages"
-        private const val MESSAGE_ID_KEY = "messageId"
         private const val NOTIFICATION_ID = 1101
     }
 
@@ -23,17 +22,26 @@ class UsPaceFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         SyncHub.init(applicationContext)
         val type = message.data["type"] ?: return
-        if (type != "new_message") return
-        val messageId = message.data[MESSAGE_ID_KEY].orEmpty()
-        if (!SyncHub.store.markNotificationIfNew(messageId)) return
+        val eventId = message.data["eventId"].orEmpty()
+        if (!SyncHub.store.markNotificationIfNew(eventId)) return
+        val destination = message.data["notificationDestination"] ?: "/space?view=chat"
+        val body = when (type) {
+            "new_message" -> "You received a new message."
+            "incoming_call" -> "Your partner is calling."
+            "invitation" -> "You have a new couple invitation."
+            "device_change" -> "Your shared space devices changed."
+            "canvas_activity" -> "Your partner updated the shared canvas."
+            "memory_activity" -> "Your partner added something to Memories."
+            else -> message.notification?.body ?: "You have a new UsPace notification."
+        }
 
         createChannel()
         val tapIntent = Intent(this, WebAppActivity::class.java)
-            .putExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION, "/space")
+            .putExtra(WebAppActivity.EXTRA_NOTIFICATION_DESTINATION, destination)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(
             this,
-            messageId.hashCode(),
+            eventId.hashCode(),
             tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -45,12 +53,12 @@ class UsPaceFirebaseMessagingService : FirebaseMessagingService() {
         }
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle("UsPace")
-            .setContentText("You received a new message.")
+            .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
         getSystemService(NotificationManager::class.java).notify(
-            if (messageId.isBlank()) NOTIFICATION_ID else messageId.hashCode(),
+            if (eventId.isBlank()) NOTIFICATION_ID else eventId.hashCode(),
             notification
         )
     }

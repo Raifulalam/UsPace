@@ -24,18 +24,16 @@ const INVALID_TOKEN_CODES = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-async function notifyNewMessage({ coupleId, senderId, messageId }) {
+async function notifyUsers({ userIds, type, title, body, destination = '/space', eventId }) {
   if (!messaging) return { configured: false, sent: 0 };
-  const couple = await Couple.findById(coupleId).select('members');
-  if (!couple) return { configured: true, sent: 0 };
-  const recipientIds = couple.members.filter((id) => String(id) !== String(senderId));
-  const tokens = await PushToken.find({ userId: { $in: recipientIds }, platform: 'android' }).select('_id token').sort({ createdAt: 1 });
+  const tokens = await PushToken.find({ userId: { $in: userIds }, platform: 'android' }).select('_id token').sort({ createdAt: 1 });
   if (!tokens.length) return { configured: true, sent: 0 };
 
   const response = await messaging.sendEachForMulticast({
     tokens: tokens.map((t) => t.token),
     android: { priority: 'high' },
-    data: { type: 'new_message', coupleId: String(coupleId), messageId: String(messageId) },
+    notification: { title, body },
+    data: { type, eventId: String(eventId || `${type}:${Date.now()}`), notificationDestination: destination },
   });
   const invalidIds = response.responses
     .map((result, index) => result.success || !INVALID_TOKEN_CODES.has(result.error?.code) ? null : tokens[index]._id)
@@ -44,4 +42,23 @@ async function notifyNewMessage({ coupleId, senderId, messageId }) {
   return { configured: true, sent: response.successCount, removed: invalidIds.length };
 }
 
-module.exports = { notifyNewMessage, isConfigured: () => configured };
+async function notifyCouple({ coupleId, senderId, ...event }) {
+  const couple = await Couple.findById(coupleId).select('members');
+  if (!couple) return { configured, sent: 0 };
+  const userIds = couple.members.filter((id) => String(id) !== String(senderId));
+  return notifyUsers({ userIds, ...event });
+}
+
+function notifyNewMessage({ coupleId, senderId, messageId }) {
+  return notifyCouple({
+    coupleId,
+    senderId,
+    type: 'new_message',
+    title: 'UsPace',
+    body: 'You received a new message.',
+    destination: '/space?view=chat',
+    eventId: `message:${messageId}`,
+  });
+}
+
+module.exports = { notifyNewMessage, notifyCouple, notifyUsers, isConfigured: () => configured };

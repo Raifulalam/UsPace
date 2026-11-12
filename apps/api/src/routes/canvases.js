@@ -7,6 +7,7 @@ const { zObjectId } = require('../utils/b64');
 const { restOpSchema, listOpsSchema, favoriteSchema } = require('../schemas/canvas');
 const svc = require('../services/canvasService');
 const { emitToCanvas, emitToCouple } = require('../services/realtime');
+const { notifyCouple } = require('../services/pushNotificationService');
 
 const idParam = z.object({ id: zObjectId }).strict();
 router.use(authenticate);
@@ -14,6 +15,15 @@ router.use(authenticate);
 router.post('/', asyncHandler(async (req, res) => {
   const canvas = await svc.createCanvas(req.user);
   emitToCouple(String(req.user.coupleId), 'canvas:created', { canvasId: canvas.id }); // lets partners (and the wallpaper) follow the newest canvas
+  notifyCouple({
+    coupleId: req.user.coupleId,
+    senderId: req.user._id,
+    type: 'canvas_activity',
+    title: 'UsPace',
+    body: 'Your partner started a new shared canvas.',
+    destination: '/space?view=canvas',
+    eventId: `canvas-created:${canvas.id}`,
+  }).catch((error) => console.error('push notification delivery failed', error));
   res.status(201).json({ data: { canvas } });
 }));
 router.get('/', asyncHandler(async (req, res) => res.json({ data: { canvases: await svc.listCanvases(req.user) } })));

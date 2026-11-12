@@ -89,6 +89,12 @@ function ActiveSpace({ user, couple, header, onCoupleChanged }: ActiveProps) {
   const [restoreText, setRestoreText] = useState('');
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const requested = new URLSearchParams(window.location.search).get('view');
+    if (requested === 'chat' || requested === 'canvas' || requested === 'memories') setView(requested);
+  }, []);
+
   const refresh = useCallback(async () => {
     const x = ref.current;
     if (!x || syncing.current) return;
